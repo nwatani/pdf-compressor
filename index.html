@@ -1,0 +1,3567 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>PDF Compressor — Fast, Private, In-Browser</title>
+<meta name="description" content="Compress PDF files locally in your browser. No uploads, no server. Lossless optimization, image recompression and rasterization.">
+<style>
+/* ============================================================
+   Design tokens
+   ============================================================ */
+:root{
+  --bg:#eef2f9;
+  --bg-grad:radial-gradient(1200px 600px at 10% -10%, #dbe7ff 0%, transparent 60%), radial-gradient(900px 500px at 100% 0%, #e6f0ff 0%, transparent 55%);
+  --surface:#ffffff;
+  --surface-2:#f4f7fd;
+  --surface-3:#e9eff9;
+  --border:#dbe3f0;
+  --border-strong:#c3cfe4;
+  --text:#0e1729;
+  --muted:#5a6b88;
+  --brand:#2563eb;
+  --brand-2:#1d4ed8;
+  --brand-soft:#e7efff;
+  --brand-contrast:#ffffff;
+  --success:#12805a;
+  --success-soft:#e3f7ee;
+  --warn:#a15c07;
+  --warn-soft:#fdf1dd;
+  --danger:#b3261e;
+  --danger-soft:#fdeceb;
+  --radius-lg:18px;
+  --radius:13px;
+  --radius-sm:9px;
+  --shadow-sm:0 1px 2px rgba(14,23,41,.06);
+  --shadow:0 1px 2px rgba(14,23,41,.05), 0 10px 26px -14px rgba(14,23,41,.22);
+  --shadow-lg:0 24px 60px -24px rgba(14,23,41,.35);
+  --focus:0 0 0 3px rgba(37,99,235,.35);
+}
+html[data-theme="dark"]{
+  --bg:#070c17;
+  --bg-grad:radial-gradient(1200px 600px at 10% -10%, #10203d 0%, transparent 60%), radial-gradient(900px 500px at 100% 0%, #0d1c33 0%, transparent 55%);
+  --surface:#0f1729;
+  --surface-2:#131d33;
+  --surface-3:#1a2540;
+  --border:#22304c;
+  --border-strong:#31415f;
+  --text:#e9eefb;
+  --muted:#97a6c4;
+  --brand:#5b8cff;
+  --brand-2:#4a7bf0;
+  --brand-soft:#16233f;
+  --brand-contrast:#08101f;
+  --success:#4ade80;
+  --success-soft:#10261d;
+  --warn:#fbbf24;
+  --warn-soft:#2a2110;
+  --danger:#f87171;
+  --danger-soft:#2b1414;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 14px 32px -18px rgba(0,0,0,.85);
+  --shadow-lg:0 28px 70px -28px rgba(0,0,0,.9);
+  --focus:0 0 0 3px rgba(91,140,255,.45);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  background-image:var(--bg-grad);
+  background-attachment:fixed;
+  color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",Tahoma,Arial,sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{margin:0;font-weight:650;letter-spacing:-.01em;line-height:1.25}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--brand)}
+:focus-visible{outline:none;box-shadow:var(--focus);border-radius:8px}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}
+[hidden]{display:none !important}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.app-header{
+  position:sticky;top:0;z-index:40;
+  backdrop-filter:saturate(160%) blur(12px);
+  background:color-mix(in srgb, var(--surface) 82%, transparent);
+  border-bottom:1px solid var(--border);
+}
+.header-inner{
+  max-width:1180px;margin:0 auto;padding:10px 16px;
+  display:flex;align-items:center;gap:14px;justify-content:space-between;
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{
+  width:38px;height:38px;flex:none;border-radius:11px;
+  display:grid;place-items:center;
+  background:linear-gradient(140deg,var(--brand),#7c3aed);
+  color:#fff;box-shadow:var(--shadow-sm);
+}
+.logo svg{width:21px;height:21px}
+.brand h1{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tagline{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-actions{display:flex;align-items:center;gap:8px;flex:none}
+
+main{max-width:1180px;margin:0 auto;padding:18px 16px 90px;display:flex;flex-direction:column;gap:16px}
+
+/* ============================================================
+   Buttons / inputs
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:9px 15px;border-radius:10px;border:1px solid var(--border-strong);
+  background:var(--surface);cursor:pointer;font-weight:560;font-size:14px;
+  transition:background .15s ease,border-color .15s ease,transform .08s ease,opacity .15s;
+  white-space:nowrap;user-select:none;
+}
+.btn:hover{background:var(--surface-2)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-primary{background:linear-gradient(180deg,var(--brand),var(--brand-2));border-color:transparent;color:#fff;box-shadow:var(--shadow-sm)}
+.btn-primary:hover{background:linear-gradient(180deg,var(--brand-2),var(--brand-2))}
+.btn-danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%, var(--border))}
+.btn-danger:hover{background:var(--danger-soft)}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-ghost:hover{background:var(--surface-2)}
+.btn-sm{padding:6px 11px;font-size:13px;border-radius:9px}
+.btn-lg{padding:13px 22px;font-size:15.5px;border-radius:12px}
+.icon-btn{
+  width:36px;height:36px;flex:none;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface);display:grid;place-items:center;cursor:pointer;
+  transition:background .15s;font-size:15px;line-height:1;
+}
+.icon-btn:hover{background:var(--surface-2)}
+.icon-btn svg{width:17px;height:17px}
+.lang-btn{
+  width:auto;padding:0 10px;gap:6px;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.lang-btn svg{width:15px;height:15px;flex:none}
+.lang-code{font-size:11.5px;font-weight:750;letter-spacing:.05em;line-height:1}
+
+select,input[type="text"],input[type="number"]{
+  padding:8px 10px;border-radius:9px;border:1px solid var(--border-strong);
+  background:var(--surface);min-width:0;width:100%;
+}
+select{cursor:pointer;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-inline-end:30px}
+html[dir="rtl"] select{background-position:16px 50%,11px 50%}
+input[type="range"]{
+  -webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;cursor:pointer;direction:ltr;
+}
+input[type="range"]::-webkit-slider-runnable-track{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--brand),#7c3aed)}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-7px;border-radius:50%;background:#fff;border:2px solid var(--brand);box-shadow:var(--shadow-sm)}
+input[type="range"]::-moz-range-track{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--brand),#7c3aed)}
+input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--brand)}
+input[type="checkbox"]{width:17px;height:17px;accent-color:var(--brand);cursor:pointer;flex:none}
+label{font-size:13.5px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > span{font-size:12.5px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:5px}
+.check{display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;user-select:none;padding:3px 0}
+.hint{font-size:12px;color:var(--muted);line-height:1.45}
+.info-dot{
+  display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;
+  background:var(--surface-3);color:var(--muted);font-size:10px;font-weight:700;cursor:help;flex:none;
+}
+
+/* ============================================================
+   Cards
+   ============================================================ */
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow);padding:18px;
+}
+.card > header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.card h2{font-size:15.5px}
+.card h3{font-size:13.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.section-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+.banner{
+  display:flex;align-items:center;gap:10px;padding:11px 15px;border-radius:var(--radius);
+  background:var(--success-soft);border:1px solid color-mix(in srgb,var(--success) 25%, transparent);
+  color:var(--text);font-size:13.5px;font-weight:520;
+}
+.banner.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%, transparent)}
+.banner.danger{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 30%, transparent)}
+.banner svg{width:18px;height:18px;flex:none;color:var(--success)}
+.banner.warn svg{color:var(--warn)}
+.banner.danger svg{color:var(--danger)}
+
+/* ============================================================
+   Drop zone
+   ============================================================ */
+.dropzone{
+  border:2px dashed var(--border-strong);border-radius:var(--radius-lg);
+  background:var(--surface);padding:26px 20px;text-align:center;
+  transition:border-color .18s, background .18s, transform .18s;
+  display:flex;flex-direction:column;align-items:center;gap:9px;
+}
+.dropzone.drag{border-color:var(--brand);background:var(--brand-soft);transform:scale(1.006)}
+.dz-icon{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+  background:var(--brand-soft);color:var(--brand);margin-bottom:2px;
+}
+.dz-icon svg{width:26px;height:26px}
+.dz-title{font-weight:640;font-size:16px}
+.dz-sub{font-size:12.8px;color:var(--muted);max-width:460px}
+@media (max-width:640px){
+  .dropzone{padding:18px 14px}
+  .dz-icon{width:44px;height:44px}
+  .dz-title{font-size:14.5px}
+}
+
+/* ============================================================
+   Settings grid
+   ============================================================ */
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.strength-wrap{margin-top:16px;display:flex;flex-direction:column;gap:6px}
+.strength-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.strength-head strong{font-size:13.5px}
+.strength-scale{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+.strength-badge{
+  font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;
+  background:var(--brand-soft);color:var(--brand);
+}
+.strength-hint{font-size:12.5px;color:var(--muted);min-height:19px}
+
+details.advanced{
+  margin-top:16px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface-2);overflow:hidden;
+}
+details.advanced > summary{
+  cursor:pointer;padding:12px 15px;font-weight:620;font-size:13.8px;
+  display:flex;align-items:center;gap:8px;list-style:none;user-select:none;
+}
+details.advanced > summary::-webkit-details-marker{display:none}
+details.advanced > summary::after{
+  content:"";width:8px;height:8px;border-inline-end:2px solid var(--muted);border-block-end:2px solid var(--muted);
+  transform:rotate(45deg);margin-inline-start:auto;transition:transform .18s;
+}
+details.advanced[open] > summary::after{transform:rotate(-135deg)}
+.adv-body{padding:4px 15px 16px;display:flex;flex-direction:column;gap:16px}
+.adv-group{border-top:1px solid var(--border);padding-top:13px}
+.adv-group:first-child{border-top:none;padding-top:0}
+.adv-group h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:10px;font-weight:700}
+.warn-inline{color:var(--warn);font-weight:600}
+
+/* ============================================================
+   Estimate + comparison
+   ============================================================ */
+.estimate{
+  margin-top:16px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface-2);padding:14px 16px;
+}
+.estimate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.est-item{display:flex;flex-direction:column;gap:2px}
+.est-item .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:650}
+.est-item .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.est-item .v.good{color:var(--success)}
+.est-item .v.warnv{color:var(--warn)}
+.est-note{margin-top:10px;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:flex-start}
+
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:6px}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px;min-width:440px}
+table.cmp th,table.cmp td{padding:9px 10px;text-align:start;border-bottom:1px solid var(--border);white-space:nowrap}
+table.cmp th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+table.cmp tbody tr{cursor:pointer;transition:background .12s}
+table.cmp tbody tr:hover{background:var(--surface-2)}
+table.cmp tbody tr.sel{background:var(--brand-soft)}
+table.cmp td.num{font-variant-numeric:tabular-nums;font-weight:600}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:650;background:var(--surface-3);color:var(--muted)}
+.pill.g{background:var(--success-soft);color:var(--success)}
+.pill.w{background:var(--warn-soft);color:var(--warn)}
+.pill.d{background:var(--danger-soft);color:var(--danger)}
+
+/* ============================================================
+   Queue / file cards
+   ============================================================ */
+.queue-list{display:flex;flex-direction:column;gap:11px}
+.file-card{
+  border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  padding:13px 14px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s;
+}
+.file-card.is-done{border-color:color-mix(in srgb,var(--success) 35%, var(--border))}
+.file-card.is-error{border-color:color-mix(in srgb,var(--danger) 40%, var(--border))}
+.fc-top{display:flex;align-items:flex-start;gap:11px}
+.fc-icon{
+  width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;
+  background:var(--danger-soft);color:var(--danger);
+}
+.fc-icon svg{width:19px;height:19px}
+.fc-main{min-width:0;flex:1}
+.fc-name{font-weight:620;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:start;unicode-bidi:plaintext}
+.fc-meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:2px;font-variant-numeric:tabular-nums}
+.fc-meta span{white-space:nowrap}
+.fc-actions{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.progress{
+  height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden;position:relative;
+}
+.progress > i{
+  display:block;height:100%;width:0%;border-radius:999px;
+  background:linear-gradient(90deg,var(--brand),#7c3aed);transition:width .2s ease;
+}
+.fc-status{font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.fc-result{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:10px;
+  background:var(--surface-2);border-radius:var(--radius-sm);padding:11px 12px;
+}
+.fc-result .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:650}
+.fc-result .v{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.fc-result .v.good{color:var(--success)}
+.fc-err{
+  background:var(--danger-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;
+}
+.fc-err summary{cursor:pointer;font-weight:600;color:var(--danger)}
+.fc-err pre{
+  margin:8px 0 0;font-size:11.5px;white-space:pre-wrap;word-break:break-word;
+  color:var(--muted);max-height:150px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.fc-custom{
+  border-top:1px dashed var(--border);padding-top:10px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end;
+}
+.fc-warn{font-size:12px;color:var(--warn);display:flex;gap:6px;align-items:flex-start}
+
+.totals{
+  display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  padding:13px 15px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:13px;
+}
+.totals .stat{display:flex;flex-direction:column;gap:1px}
+.totals .stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:650}
+.totals .stat .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ============================================================
+   Progress area
+   ============================================================ */
+.proc-bar{
+  position:fixed;inset-inline:0;bottom:0;z-index:45;
+  background:color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter:blur(12px);border-top:1px solid var(--border);
+  padding:11px 16px;display:flex;align-items:center;gap:14px;
+  box-shadow:0 -8px 24px -20px rgba(0,0,0,.4);
+}
+.proc-inner{max-width:1180px;margin:0 auto;width:100%;display:flex;align-items:center;gap:14px}
+.proc-text{flex:1;min-width:0}
+.proc-title{font-size:13px;font-weight:640;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:start;unicode-bidi:plaintext}
+.proc-sub{font-size:11.5px;color:var(--muted)}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.modal{
+  position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;
+  background:rgba(8,14,26,.55);backdrop-filter:blur(3px);
+  animation:fade .15s ease;
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-lg);width:min(880px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
+}
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 18px;border-bottom:1px solid var(--border);flex:none;
+}
+.modal-head h2{font-size:16px}
+.modal-body{padding:18px;overflow:auto;-webkit-overflow-scrolling:touch}
+.modal-body h3{font-size:13px;color:var(--brand);text-transform:uppercase;letter-spacing:.05em;margin:20px 0 7px;font-weight:750}
+.modal-body h3:first-child{margin-top:0}
+.modal-body p,.modal-body li{font-size:13.6px;color:var(--text);line-height:1.62}
+.modal-body ul{margin:6px 0;padding-inline-start:20px}
+.modal-body li{margin:3px 0}
+.modal-body code{background:var(--surface-3);padding:1px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+.help-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.help-item{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:var(--surface-2)}
+.help-item strong{display:block;font-size:13.4px;margin-bottom:4px}
+.help-item span{font-size:12.6px;color:var(--muted)}
+
+/* Preview */
+.preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:640px){.preview-grid{grid-template-columns:1fr}}
+.preview-pane{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface-2)}
+.preview-pane .cap{padding:7px 11px;font-size:12px;font-weight:650;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}
+.preview-pane .canvas-wrap{padding:10px;display:grid;place-items:center;background:repeating-conic-gradient(#0000 0% 25%, rgba(127,127,127,.08) 0% 50%) 50%/16px 16px;min-height:170px}
+.preview-pane canvas{max-width:100%;height:auto;border-radius:6px;box-shadow:var(--shadow-sm);background:#fff}
+
+/* Toast */
+.toast-wrap{position:fixed;inset-block-end:70px;inset-inline-end:16px;z-index:80;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{
+  background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  box-shadow:var(--shadow-lg);padding:11px 15px;font-size:13.4px;font-weight:540;
+  display:flex;align-items:center;gap:9px;max-width:340px;animation:slide .2s ease;pointer-events:auto;
+}
+@keyframes slide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.toast.ok{border-inline-start:3px solid var(--success)}
+.toast.err{border-inline-start:3px solid var(--danger)}
+.toast.warn{border-inline-start:3px solid var(--warn)}
+
+.spinner{
+  width:15px;height:15px;border-radius:50%;border:2px solid var(--border-strong);
+  border-top-color:var(--brand);animation:spin .7s linear infinite;flex:none;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+@media (max-width:560px){
+  .card{padding:14px;border-radius:var(--radius)}
+  main{padding:14px 12px 100px;gap:13px}
+  .header-inner{padding:9px 12px}
+  .tagline{display:none}
+  .fc-actions{width:100%;justify-content:flex-start}
+  .fc-top{flex-wrap:wrap}
+}
+
+/* ============================================================
+   Footer / credits
+   ============================================================ */
+.app-footer{
+  margin-top:10px;
+  padding-top:20px;
+  border-top:1px solid var(--border);
+  text-align:center;
+}
+.credit{
+  font-size:12.5px;
+  color:var(--muted);
+  letter-spacing:.015em;
+  line-height:1.6;
+}
+.credit-name{
+  color:var(--text);
+  font-weight:650;
+  letter-spacing:.01em;
+  white-space:nowrap;
+}
+@media (max-width:560px){
+  .app-footer{padding-top:16px}
+  .credit{font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h6"/>
+        </svg>
+      </div>
+      <div>
+        <h1 data-i18n="appName">PDF Compressor</h1>
+        <p class="tagline" data-i18n="tagline">Fast, private, in-browser PDF compression</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="langBtn" class="icon-btn lang-btn" type="button" aria-label="Switch language" title="Switch language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <span class="lang-code">AR</span>
+      </button>
+      <button id="themeBtn" class="icon-btn" type="button" aria-label="Theme" title="Theme">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <button id="helpBtn" class="icon-btn" type="button" aria-label="Help" title="Help">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="banner" role="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span data-i18n="privacyMsg">Your PDF files are processed locally on your device and are not uploaded to a server.</span>
+  </div>
+
+  <div id="libWarn" class="banner warn" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    <span id="libWarnText"></span>
+  </div>
+
+  <!-- Drop zone -->
+  <section class="card" aria-labelledby="dropHeading">
+    <h2 id="dropHeading" class="sr-only" data-i18n="addPdfs">Add PDF files</h2>
+    <div id="dropzone" class="dropzone">
+      <div class="dz-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+      </div>
+      <p class="dz-title" data-i18n="dropTitle">Drag &amp; drop PDF files here</p>
+      <p class="dz-sub" data-i18n="dropSub">PDF only · Processed entirely on your device · Nothing is uploaded</p>
+      <button class="btn btn-primary" id="browseBtn" type="button" data-i18n="addFiles">Add files</button>
+      <input id="fileInput" type="file" accept="application/pdf,.pdf" multiple hidden>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section class="card" id="settingsCard" hidden aria-labelledby="settingsHeading">
+    <header>
+      <div>
+        <h2 id="settingsHeading" data-i18n="compressionSettings">Compression settings</h2>
+        <p class="section-sub" data-i18n="settingsSub">Applied to all files unless a file uses its own settings.</p>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <label class="field">
+        <span data-i18n="profile">Profile</span>
+        <select id="profileSel"></select>
+      </label>
+      <label class="field">
+        <span data-i18n="method">
+          Method
+          <i class="info-dot" data-tip="methodTip" title="">i</i>
+        </span>
+        <select id="methodSel">
+          <option value="smart" data-i18n="methodSmart">Smart (recommended)</option>
+          <option value="lossless" data-i18n="methodLossless">Lossless optimization</option>
+          <option value="images" data-i18n="methodImages">Image optimization</option>
+          <option value="raster" data-i18n="methodRaster">Rasterization (smallest)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="strength-wrap">
+      <div class="strength-head">
+        <strong data-i18n="strength">Compression strength</strong>
+        <span class="strength-badge" id="strengthBadge">Balanced</span>
+      </div>
+      <input type="range" id="strengthRange" min="0" max="100" step="1" value="40"
+             aria-label="Compression strength" aria-describedby="strengthHint">
+      <div class="strength-scale">
+        <span data-i18n="smallerFile">← Smaller file</span>
+        <span data-i18n="betterQuality">Better quality →</span>
+      </div>
+      <p class="strength-hint" id="strengthHint"></p>
+    </div>
+
+    <div class="grid-2" style="margin-top:16px">
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" id="targetChk">
+          <span data-i18n="targetSize">Target file size</span>
+        </label>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="targetVal" min="0.1" step="0.1" value="2" style="flex:2" aria-label="Target size value">
+          <select id="targetUnit" style="flex:1" aria-label="Target size unit">
+            <option value="KB">KB</option>
+            <option value="MB" selected>MB</option>
+          </select>
+        </div>
+        <p class="hint" data-i18n="targetHint">The compressor will progressively increase compression until it gets as close as practical. An exact target is not guaranteed.</p>
+      </div>
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" id="autoProfileChk" checked>
+          <span data-i18n="autoPerFile">Choose the best profile automatically for each PDF</span>
+        </label>
+        <p class="hint" data-i18n="autoPerFileHint">Each document is analysed individually and the most suitable strategy is used.</p>
+      </div>
+    </div>
+
+    <!-- Advanced -->
+    <details class="advanced" id="advancedPanel">
+      <summary data-i18n="advancedOptions">Advanced options</summary>
+      <div class="adv-body">
+        <div class="adv-group">
+          <h4 data-i18n="advImages">Images</h4>
+          <div class="grid-3">
+            <label class="field">
+              <span data-i18n="maxDpi">Maximum DPI</span>
+              <input type="number" id="advDpi" min="36" max="600" step="6" value="150">
+            </label>
+            <label class="field">
+              <span data-i18n="jpegQuality">JPEG quality (0.30–0.95)</span>
+              <input type="number" id="advQuality" min="0.3" max="0.95" step="0.01" value="0.75">
+            </label>
+            <label class="field">
+              <span data-i18n="minImageKb">Skip images smaller than (KB)</span>
+              <input type="number" id="advMinKb" min="0" max="5000" step="1" value="12">
+            </label>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:11px">
+            <label class="check"><input type="checkbox" id="advGrayscale"><span data-i18n="grayscale">Convert images to grayscale</span></label>
+            <label class="check"><input type="checkbox" id="advRecompress" checked><span data-i18n="recompress">Recompress embedded images</span></label>
+            <label class="check"><input type="checkbox" id="advPreserveHq" checked><span data-i18n="preserveHq">Preserve already-efficient images</span></label>
+          </div>
+        </div>
+
+        <div class="adv-group">
+          <h4 data-i18n="advStructure">PDF structure</h4>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 22px">
+            <label class="check"><input type="checkbox" id="advObjStreams" checked><span data-i18n="objStreams">Optimize object streams</span></label>
+            <label class="check"><input type="checkbox" id="advRemoveMeta"><span data-i18n="removeMeta">Remove document metadata</span></label>
+          </div>
+        </div>
+
+        <div class="adv-group">
+          <h4 data-i18n="advCompat">Compatibility</h4>
+          <label class="field" style="max-width:340px">
+            <select id="advCompat">
+              <option value="max" data-i18n="compatMax">Maximum compatibility (PDF 1.4 style)</option>
+              <option value="modern" selected data-i18n="compatModern">Modern PDF (recommended)</option>
+              <option value="small" data-i18n="compatSmall">Smaller file size (object streams)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="adv-group">
+          <h4 data-i18n="advPreserve">Content preservation</h4>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 22px">
+            <label class="check"><input type="checkbox" id="advPreserveText" checked><span data-i18n="preserveText">Preserve selectable text</span></label>
+            <label class="check"><input type="checkbox" id="advPreserveLinks" checked><span data-i18n="preserveLinks">Preserve links</span></label>
+            <label class="check"><input type="checkbox" id="advPreserveBookmarks" checked><span data-i18n="preserveBookmarks">Preserve bookmarks</span></label>
+            <label class="check"><input type="checkbox" id="advPreserveAnnots" checked><span data-i18n="preserveAnnots">Preserve annotations</span></label>
+            <label class="check"><input type="checkbox" id="advPreserveForms" checked><span data-i18n="preserveForms">Preserve forms</span></label>
+          </div>
+          <label class="check" style="margin-top:9px">
+            <input type="checkbox" id="advAllowRaster">
+            <span data-i18n="allowRaster">Allow rasterization (removes selectable text)</span>
+          </label>
+          <p class="hint warn-inline" style="margin-top:5px" data-i18n="rasterWarn">Rasterization renders pages as images. Text becomes non-selectable, and forms, links, bookmarks and annotations may be lost.</p>
+        </div>
+      </div>
+    </details>
+
+    <!-- Estimate -->
+    <div class="estimate" id="estimateBox"></div>
+
+    <!-- Comparison -->
+    <div id="compareWrap" style="margin-top:16px" hidden>
+      <h3 data-i18n="profileComparison">Profile comparison</h3>
+      <p class="hint" id="compareFor" style="margin-top:2px"></p>
+      <div class="table-scroll">
+        <table class="cmp">
+          <thead>
+            <tr>
+              <th data-i18n="thProfile">Profile</th>
+              <th data-i18n="thEstSize">Estimated size</th>
+              <th data-i18n="thReduction">Reduction</th>
+              <th data-i18n="thQuality">Quality</th>
+            </tr>
+          </thead>
+          <tbody id="cmpBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+      <button class="btn btn-primary btn-lg" id="compressBtn" type="button" data-i18n="compressPdf">Compress PDF</button>
+      <button class="btn btn-lg" id="previewBtn" type="button" data-i18n="preview">Preview quality</button>
+      <button class="btn btn-danger btn-lg" id="clearBtn" type="button" data-i18n="clearQueue">Clear queue</button>
+    </div>
+  </section>
+
+  <!-- Queue -->
+  <section class="card" id="queueSection" hidden aria-labelledby="queueHeading">
+    <header>
+      <div>
+        <h2 id="queueHeading" data-i18n="fileQueue">File queue</h2>
+        <p class="section-sub" id="queueSub"></p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="downloadAllBtn" type="button" hidden data-i18n="downloadAll">Download all (.zip)</button>
+        <button class="btn btn-sm" id="addMoreBtn" type="button" data-i18n="addMore">Add more</button>
+      </div>
+    </header>
+    <div id="totalsBox"></div>
+    <div class="queue-list" id="queueList"></div>
+  </section>
+
+  <!-- Session history -->
+  <section class="card" id="historySection" hidden aria-labelledby="historyHeading">
+    <header><h2 id="historyHeading" data-i18n="sessionHistory">Session history</h2>
+      <button class="btn btn-sm btn-ghost" id="clearHistoryBtn" type="button" data-i18n="clearHistory">Clear history</button>
+    </header>
+    <div id="historyList" class="queue-list"></div>
+  </section>
+
+  <!-- Credits -->
+  <footer class="app-footer">
+    <p class="credit">
+      <span data-i18n="creditPrefix">Programmed by</span>
+      <strong class="credit-name">Naser AlWatani</strong>
+    </p>
+  </footer>
+</main>
+
+<!-- Processing bar -->
+<div class="proc-bar" id="procBar" hidden role="status" aria-live="polite">
+  <div class="proc-inner">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="proc-text">
+      <div class="proc-title" id="procTitle"></div>
+      <div class="proc-sub" id="procSub"></div>
+    </div>
+    <div style="min-width:120px;max-width:220px;flex:1">
+      <div class="progress"><i id="procBarFill"></i></div>
+    </div>
+    <button class="btn btn-danger btn-sm" id="cancelBtn" type="button" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h2 id="helpTitle" data-i18n="helpTitle">Help &amp; how to use</h2>
+      <button class="icon-btn" data-close-modal type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="helpBody"></div>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div class="modal" id="previewModal" hidden role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h2 id="previewTitle" data-i18n="previewTitle">Quality preview</h2>
+      <button class="icon-btn" data-close-modal type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:14px">
+        <label class="field" style="max-width:130px">
+          <span data-i18n="page">Page</span>
+          <input type="number" id="previewPage" min="1" value="1">
+        </label>
+        <button class="btn btn-sm" id="previewRenderBtn" type="button" data-i18n="refresh">Refresh</button>
+        <p class="hint" id="previewNote" style="flex:1;min-width:200px"></p>
+      </div>
+      <div class="preview-grid">
+        <div class="preview-pane">
+          <div class="cap"><span data-i18n="original">Original</span><span id="prevCapL"></span></div>
+          <div class="canvas-wrap"><canvas id="prevCanvasL"></canvas></div>
+        </div>
+        <div class="preview-pane">
+          <div class="cap"><span data-i18n="estimatedCompressed">Estimated compressed</span><span id="prevCapR"></span></div>
+          <div class="canvas-wrap"><canvas id="prevCanvasR"></canvas></div>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:12px" data-i18n="previewDisclaimer">This preview simulates the effect of the selected quality and resolution settings on a single page. Actual results may differ.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
+<div class="sr-only" id="srStatus" role="status" aria-live="polite"></div>
+
+<!-- ============ Libraries (pinned versions, CDN) ============ -->
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" crossorigin="anonymous"></script>
+
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   0. Tiny helpers
+   ============================================================ */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const yieldUI = () => new Promise(r => setTimeout(r, 0));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function fmtBytes(n) {
+  if (n === null || n === undefined || !isFinite(n) || n < 0) return "—";
+  if (n < 1024) return n + " B";
+  const kb = n / 1024;
+  if (kb < 1024) return kb.toFixed(kb < 10 ? 1 : 0) + " KB";
+  const mb = kb / 1024;
+  if (mb < 1024) return mb.toFixed(mb < 10 ? 2 : 1) + " MB";
+  return (mb / 1024).toFixed(2) + " GB";
+}
+function fmtPct(p) {
+  if (!isFinite(p)) return "—";
+  return (p > 0 ? "-" : "+") + Math.abs(p).toFixed(1) + "%";
+}
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function sanitizeName(name, suffix) {
+  let base = String(name || "document").replace(/\.pdf$/i, "");
+  base = base.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").slice(0, 90) || "document";
+  return base + (suffix || "") + ".pdf";
+}
+function latin1(bytes, max) {
+  const n = Math.min(bytes.length, max || bytes.length);
+  let out = "";
+  const CH = 8192;
+  for (let i = 0; i < n; i += CH) {
+    out += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CH, n)));
+  }
+  return out;
+}
+function toast(msg, kind, ms) {
+  const wrap = $("#toastWrap");
+  const el = document.createElement("div");
+  el.className = "toast " + (kind || "");
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transition = "opacity .25s";
+    setTimeout(() => el.remove(), 260);
+  }, ms || 4200);
+}
+function srSay(msg) { const el = $("#srStatus"); el.textContent = ""; setTimeout(() => { el.textContent = msg; }, 40); }
+
+/* ============================================================
+   1. i18n
+   ============================================================ */
+const I18N = {
+  en: {
+    appName: "PDF Compressor",
+    tagline: "Fast, private, in-browser PDF compression",
+    privacyMsg: "Your PDF files are processed locally on your device and are not uploaded to a server.",
+    creditPrefix: "Programmed by",
+    addPdfs: "Add PDF files",
+    dropTitle: "Drag & drop PDF files here",
+    dropSub: "PDF only · Processed entirely on your device · Nothing is uploaded",
+    addFiles: "Add files",
+    addMore: "Add more",
+    compressionSettings: "Compression settings",
+    settingsSub: "Applied to all files unless a file uses its own settings.",
+    profile: "Profile",
+    method: "Method",
+    methodTip: "Smart chooses the best strategy after analysing each PDF.",
+    methodSmart: "Smart (recommended)",
+    methodLossless: "Lossless optimization",
+    methodImages: "Image optimization",
+    methodRaster: "Rasterization (smallest)",
+    strength: "Compression strength",
+    smallerFile: "← Smaller file",
+    betterQuality: "Better quality →",
+    targetSize: "Target file size",
+    targetHint: "The compressor progressively increases compression until it gets as close as practical. An exact target is not guaranteed.",
+    autoPerFile: "Choose the best profile automatically for each PDF",
+    autoPerFileHint: "Each document is analysed individually and the most suitable strategy is used.",
+    advancedOptions: "Advanced options",
+    advImages: "Images",
+    maxDpi: "Maximum DPI",
+    jpegQuality: "JPEG quality (0.30–0.95)",
+    minImageKb: "Skip images smaller than (KB)",
+    grayscale: "Convert images to grayscale",
+    recompress: "Recompress embedded images",
+    preserveHq: "Preserve already-efficient images",
+    advStructure: "PDF structure",
+    objStreams: "Optimize object streams",
+    removeMeta: "Remove document metadata",
+    advCompat: "Compatibility",
+    compatMax: "Maximum compatibility (PDF 1.4 style)",
+    compatModern: "Modern PDF (recommended)",
+    compatSmall: "Smaller file size (object streams)",
+    advPreserve: "Content preservation",
+    preserveText: "Preserve selectable text",
+    preserveLinks: "Preserve links",
+    preserveBookmarks: "Preserve bookmarks",
+    preserveAnnots: "Preserve annotations",
+    preserveForms: "Preserve forms",
+    allowRaster: "Allow rasterization (removes selectable text)",
+    rasterWarn: "Rasterization renders pages as images. Text becomes non-selectable, and forms, links, bookmarks and annotations may be lost.",
+    profileComparison: "Profile comparison",
+    thProfile: "Profile",
+    thEstSize: "Estimated size",
+    thReduction: "Reduction",
+    thQuality: "Quality",
+    compressPdf: "Compress PDF",
+    preview: "Preview quality",
+    clearQueue: "Clear queue",
+    fileQueue: "File queue",
+    downloadAll: "Download all (.zip)",
+    sessionHistory: "Session history",
+    clearHistory: "Clear history",
+    cancel: "Cancel",
+    helpTitle: "Help & how to use",
+    previewTitle: "Quality preview",
+    page: "Page",
+    refresh: "Refresh",
+    original: "Original",
+    estimatedCompressed: "Estimated compressed",
+    previewDisclaimer: "This preview simulates the effect of the selected quality and resolution settings on a single page. Actual results may differ.",
+
+    // profile names
+    pMaximumQuality: "Maximum Quality",
+    pRecommended: "Recommended",
+    pSmallUpload: "Small Upload",
+    pMaxCompression: "Maximum Compression",
+    pScanned: "Scanned Document",
+    pOffice: "Office / Text",
+    pEmail: "Email Attachment",
+    pArchive: "Archive (lossless)",
+    pCustom: "Custom",
+
+    // strength
+    sLight: "Light",
+    sBalanced: "Balanced",
+    sStrong: "Strong",
+    sMaximum: "Maximum",
+    sCustom: "Custom",
+    hLight: "Minimal quality reduction, prioritises document preservation.",
+    hBalanced: "Good reduction with excellent visual quality.",
+    hStrong: "Significant size reduction, suitable for upload limits.",
+    hMaximum: "Prioritises the smallest practical file size.",
+
+    // estimate
+    estOriginal: "Original",
+    estEstimated: "Estimated output",
+    estReduction: "Estimated reduction",
+    estMethod: "Planned method",
+    estTarget: "Requested target",
+    estTargetStatus: "Target assessment",
+    estNote: "Estimates are approximate and depend on the internal structure of your PDF. Text-heavy PDFs often compress less than scanned ones.",
+    targetRealistic: "Realistic — the target should be reachable.",
+    targetClose: "Very close — further compression may noticeably reduce quality.",
+    targetHard: "Difficult — reaching this target will require heavy rasterization and visible quality loss.",
+    targetEasy: "Comfortably achievable with the current settings.",
+
+    // queue
+    filesCount: "files",
+    totalOriginal: "Total original",
+    totalEstimated: "Total estimated",
+    totalSaved: "Total saved",
+    ready: "Ready",
+    queued: "Queued",
+    analysing: "Analysing…",
+    compressing: "Compressing…",
+    done: "Done",
+    failed: "Failed",
+    cancelled: "Cancelled",
+    remove: "Remove",
+    download: "Download",
+    recompress: "Compress again",
+    details: "Technical details",
+    useCustom: "Use individual settings for this file",
+    pages: "pages",
+    page: "page",
+    images: "images",
+    noImages: "no images",
+    savedLabel: "Saved",
+    compressedLabel: "Compressed",
+    timeLabel: "Time",
+    qualityLabel: "Quality",
+    methodLabel: "Method",
+    fileTypeText: "Mostly text / vector",
+    fileTypeScanned: "Mostly scanned pages",
+    fileTypeImage: "Image-heavy",
+    fileTypeMixed: "Mixed content",
+    alreadyOptimized: "This PDF is already highly optimised. Further compression may produce only a small reduction or affect quality.",
+    outputLarger: "The compressed result was not smaller than the original, so the original file is offered instead.",
+
+    // actions / messages
+    compressingFile: "Compressing",
+    processing: "Processing",
+    analysingFile: "Analysing",
+    compressingAll: "Compressing files",
+    finished: "Finished",
+    cancelledMsg: "Operation cancelled.",
+    noValidFiles: "No valid PDF files were selected.",
+    onlyPdf: "Only PDF files are supported.",
+    addedFiles: "file(s) added",
+    queueCleared: "Queue cleared.",
+    removedFile: "File removed.",
+    nothingToDownload: "No compressed files to download yet.",
+    copied: "Statistics copied to clipboard.",
+    errorInvalidPdf: "This file is not a valid PDF or it is corrupted.",
+    errorEncrypted: "This PDF is password-protected or encrypted. Remove the protection first, then try again.",
+    errorMemory: "There was not enough memory to process this file. Try closing other tabs, or process a smaller file.",
+    errorGeneric: "Compression failed for this file.",
+    errorCancelled: "Operation cancelled by the user.",
+    errorUnsupported: "This PDF uses features that cannot be processed in the browser.",
+    errorOutput: "The generated file failed validation, so it was discarded to protect your document.",
+    tryAgain: "Try again",
+    working: "Working…",
+    estimateFor: "Estimate for",
+    loadingPreview: "Rendering preview…",
+    previewUnavailable: "Preview is not available for this file.",
+    helpClose: "Close",
+    libMissing: "One or more compression engines could not be loaded from the CDN. Lossless optimisation may still work, but image optimisation and rasterisation are unavailable.",
+    noEngine: "PDF engine unavailable — please check your internet connection and reload the page.",
+    largeFileWarn: "This file is large. Processing may use significant memory and take a while.",
+    selectFileFirst: "Add a PDF file first.",
+    qualityExcellent: "Excellent",
+    qualityVeryGood: "Very Good",
+    qualityGood: "Good",
+    qualityFair: "Fair",
+    qualityLow: "Low",
+    resultGreat: "Great result",
+    resultGood: "Good result",
+    resultLimited: "Limited improvement",
+    clearConfirm: "Remove all files from the queue?",
+    fileTooBig: "File exceeds the practical browser limit (~500 MB) and was skipped.",
+    mode: "Mode",
+    settings: "Settings",
+    perFileSettings: "Individual settings",
+    strengthShort: "Strength"
+  },
+
+  ar: {
+    appName: "ضاغط ملفات PDF",
+    tagline: "ضغط سريع وآمن لملفات PDF داخل المتصفح",
+    privacyMsg: "تتم معالجة ملفات PDF محليًا على جهازك ولا يتم رفعها إلى أي خادم.",
+    creditPrefix: "برمجة:",
+    addPdfs: "إضافة ملفات PDF",
+    dropTitle: "اسحب ملفات PDF وأفلتها هنا",
+    dropSub: "ملفات PDF فقط · تتم المعالجة بالكامل على جهازك · لا يتم رفع أي شيء",
+    addFiles: "إضافة ملفات",
+    addMore: "إضافة المزيد",
+    compressionSettings: "إعدادات الضغط",
+    settingsSub: "تُطبَّق على جميع الملفات ما لم يستخدم ملف معيّن إعداداته الخاصة.",
+    profile: "الملف التعريفي",
+    method: "الطريقة",
+    methodTip: "الوضع الذكي يختار أفضل استراتيجية بعد تحليل كل ملف PDF.",
+    methodSmart: "ذكي (موصى به)",
+    methodLossless: "تحسين بدون فقدان",
+    methodImages: "تحسين الصور",
+    methodRaster: "التحويل إلى صور (أصغر حجمًا)",
+    strength: "قوة الضغط",
+    smallerFile: "← ملف أصغر",
+    betterQuality: "جودة أفضل →",
+    targetSize: "الحجم المستهدف للملف",
+    targetHint: "سيقوم الضاغط بزيادة الضغط تدريجيًا حتى يقترب من الهدف قدر الإمكان. لا يمكن ضمان الوصول إلى الحجم المطلوب بدقة.",
+    autoPerFile: "اختيار أفضل ملف تعريفي تلقائيًا لكل ملف PDF",
+    autoPerFileHint: "يتم تحليل كل مستند على حدة واستخدام الاستراتيجية الأنسب له.",
+    advancedOptions: "خيارات متقدمة",
+    advImages: "الصور",
+    maxDpi: "أقصى دقة (DPI)",
+    jpegQuality: "جودة JPEG (0.30–0.95)",
+    minImageKb: "تجاهل الصور الأصغر من (كيلوبايت)",
+    grayscale: "تحويل الصور إلى تدرّج رمادي",
+    recompress: "إعادة ضغط الصور المضمّنة",
+    preserveHq: "الإبقاء على الصور عالية الكفاءة كما هي",
+    advStructure: "بنية ملف PDF",
+    objStreams: "تحسين تدفقات الكائنات",
+    removeMeta: "إزالة البيانات الوصفية للمستند",
+    advCompat: "التوافق",
+    compatMax: "أقصى توافق (نمط PDF 1.4)",
+    compatModern: "PDF حديث (موصى به)",
+    compatSmall: "حجم أصغر (تدفقات الكائنات)",
+    advPreserve: "الحفاظ على المحتوى",
+    preserveText: "الحفاظ على النص القابل للتحديد",
+    preserveLinks: "الحفاظ على الروابط",
+    preserveBookmarks: "الحفاظ على الإشارات المرجعية",
+    preserveAnnots: "الحفاظ على التعليقات التوضيحية",
+    preserveForms: "الحفاظ على النماذج",
+    allowRaster: "السماح بالتحويل إلى صور (يزيل النص القابل للتحديد)",
+    rasterWarn: "التحويل إلى صور يرسم الصفحات كصور، فيصبح النص غير قابل للتحديد، وقد تُفقد النماذج والروابط والإشارات المرجعية والتعليقات.",
+    profileComparison: "مقارنة الملفات التعريفية",
+    thProfile: "الملف التعريفي",
+    thEstSize: "الحجم التقديري",
+    thReduction: "نسبة التخفيض",
+    thQuality: "الجودة",
+    compressPdf: "ضغط ملف PDF",
+    preview: "معاينة الجودة",
+    clearQueue: "تفريغ القائمة",
+    fileQueue: "قائمة الملفات",
+    downloadAll: "تنزيل الكل (.zip)",
+    sessionHistory: "سجل الجلسة",
+    clearHistory: "مسح السجل",
+    cancel: "إلغاء",
+    helpTitle: "المساعدة وطريقة الاستخدام",
+    previewTitle: "معاينة الجودة",
+    page: "الصفحة",
+    refresh: "تحديث",
+    original: "الأصلي",
+    estimatedCompressed: "المضغوط المتوقع",
+    previewDisclaimer: "تحاكي هذه المعاينة تأثير إعدادات الجودة والدقة المختارة على صفحة واحدة. قد تختلف النتائج الفعلية.",
+
+    pMaximumQuality: "أقصى جودة",
+    pRecommended: "موصى به",
+    pSmallUpload: "للمرفقات الصغيرة",
+    pMaxCompression: "أقصى ضغط",
+    pScanned: "مستند ممسوح ضوئيًا",
+    pOffice: "مستند مكتبي / نصي",
+    pEmail: "مرفق بريد إلكتروني",
+    pArchive: "أرشيف (بدون فقدان)",
+    pCustom: "مخصّص",
+
+    sLight: "خفيف",
+    sBalanced: "متوازن",
+    sStrong: "قوي",
+    sMaximum: "الأقصى",
+    sCustom: "مخصّص",
+    hLight: "تقليل طفيف في الجودة مع أولوية الحفاظ على المستند.",
+    hBalanced: "تخفيض جيد في الحجم مع جودة بصرية ممتازة.",
+    hStrong: "تخفيض كبير في الحجم يناسب حدود الرفع.",
+    hMaximum: "يعطي الأولوية لأصغر حجم ممكن.",
+
+    estOriginal: "الأصلي",
+    estEstimated: "الحجم المتوقع",
+    estReduction: "نسبة التخفيض المتوقعة",
+    estMethod: "الطريقة المخطط لها",
+    estTarget: "الحجم المطلوب",
+    estTargetStatus: "تقييم الهدف",
+    estNote: "التقديرات تقريبية وتعتمد على البنية الداخلية للملف. الملفات النصية غالبًا تنضغط بدرجة أقل من الملفات الممسوحة.",
+    targetRealistic: "واقعي — يمكن الوصول إلى الهدف غالبًا.",
+    targetClose: "قريب جدًا — قد يقلّل الضغط الإضافي الجودة بشكل ملحوظ.",
+    targetHard: "صعب — الوصول إلى هذا الهدف يتطلب تحويلًا مكثفًا للصور وفقدانًا واضحًا في الجودة.",
+    targetEasy: "قابل للتحقيق بسهولة بالإعدادات الحالية.",
+
+    filesCount: "ملفات",
+    totalOriginal: "الإجمالي الأصلي",
+    totalEstimated: "الإجمالي المتوقع",
+    totalSaved: "إجمالي التوفير",
+    ready: "جاهز",
+    queued: "في الانتظار",
+    analysing: "جارٍ التحليل…",
+    compressing: "جارٍ الضغط…",
+    done: "تم",
+    failed: "فشل",
+    cancelled: "أُلغي",
+    remove: "إزالة",
+    download: "تنزيل",
+    recompress: "ضغط مرة أخرى",
+    details: "تفاصيل تقنية",
+    useCustom: "استخدام إعدادات مستقلة لهذا الملف",
+    pages: "صفحات",
+    page: "صفحة",
+    images: "صور",
+    noImages: "بدون صور",
+    savedLabel: "التوفير",
+    compressedLabel: "المضغوط",
+    timeLabel: "الزمن",
+    qualityLabel: "الجودة",
+    methodLabel: "الطريقة",
+    fileTypeText: "نصي / متجهي في الأساس",
+    fileTypeScanned: "صفحات ممسوحة ضوئيًا",
+    fileTypeImage: "غني بالصور",
+    fileTypeMixed: "محتوى مختلط",
+    alreadyOptimized: "هذا الملف مُحسَّن بالفعل بدرجة عالية. قد لا يحقق الضغط الإضافي سوى تقليل بسيط أو قد يؤثر على الجودة.",
+    outputLarger: "لم يكن الناتج المضغوط أصغر من الأصل، لذلك يتم تقديم الملف الأصلي بدلًا منه.",
+
+    compressingFile: "جارٍ ضغط",
+    processing: "جارٍ المعالجة",
+    analysingFile: "جارٍ تحليل",
+    compressingAll: "جارٍ ضغط الملفات",
+    finished: "انتهى",
+    cancelledMsg: "تم إلغاء العملية.",
+    noValidFiles: "لم يتم اختيار أي ملفات PDF صالحة.",
+    onlyPdf: "يُدعم فقط ملفات PDF.",
+    addedFiles: "تمت إضافة ملف/ملفات",
+    queueCleared: "تم تفريغ القائمة.",
+    removedFile: "تمت إزالة الملف.",
+    nothingToDownload: "لا توجد ملفات مضغوطة للتنزيل بعد.",
+    copied: "تم نسخ الإحصاءات إلى الحافظة.",
+    errorInvalidPdf: "هذا الملف ليس ملف PDF صالحًا أو أنه تالف.",
+    errorEncrypted: "هذا الملف محمي بكلمة مرور أو مشفّر. أزل الحماية أولًا ثم حاول مرة أخرى.",
+    errorMemory: "لا توجد ذاكرة كافية لمعالجة هذا الملف. أغلق بعض التبويبات أو جرّب ملفًا أصغر.",
+    errorGeneric: "فشل ضغط هذا الملف.",
+    errorCancelled: "تم إلغاء العملية بواسطة المستخدم.",
+    errorUnsupported: "يستخدم هذا الملف ميزات لا يمكن معالجتها في المتصفح.",
+    errorOutput: "فشل التحقق من الملف الناتج، لذلك تم التخلص منه لحماية مستندك.",
+    tryAgain: "إعادة المحاولة",
+    working: "جارٍ العمل…",
+    estimateFor: "تقدير الملف",
+    loadingPreview: "جارٍ تحضير المعاينة…",
+    previewUnavailable: "المعاينة غير متاحة لهذا الملف.",
+    helpClose: "إغلاق",
+    libMissing: "تعذّر تحميل محرك ضغط واحد أو أكثر من الشبكة. قد يعمل التحسين بدون فقدان، لكن تحسين الصور والتحويل إلى صور غير متاحين.",
+    noEngine: "محرك PDF غير متاح — تحقق من اتصالك بالإنترنت ثم أعد تحميل الصفحة.",
+    largeFileWarn: "حجم هذا الملف كبير. قد تستهلك المعالجة ذاكرة كبيرة وتستغرق وقتًا.",
+    selectFileFirst: "أضف ملف PDF أولًا.",
+    qualityExcellent: "ممتازة",
+    qualityVeryGood: "جيدة جدًا",
+    qualityGood: "جيدة",
+    qualityFair: "مقبولة",
+    qualityLow: "منخفضة",
+    resultGreat: "نتيجة ممتازة",
+    resultGood: "نتيجة جيدة",
+    resultLimited: "تحسين محدود",
+    clearConfirm: "هل تريد إزالة جميع الملفات من القائمة؟",
+    fileTooBig: "يتجاوز الملف الحد العملي للمتصفح (~500 ميغابايت) وتم تخطيه.",
+    mode: "الوضع",
+    settings: "الإعدادات",
+    perFileSettings: "إعدادات مستقلة",
+    strengthShort: "القوة"
+  }
+};
+
+let LANG = "en";
+function t(key) {
+  const d = I18N[LANG] || I18N.en;
+  return (d[key] !== undefined ? d[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key));
+}
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG === "ar" ? "rtl" : "ltr";
+  $$("[data-i18n]").forEach(el => {
+    const k = el.getAttribute("data-i18n");
+    if (k) el.textContent = t(k);
+  });
+  // Rebuild dynamic selects
+  buildProfileSelect();
+  buildStrengthBadge();
+  renderQueue();
+  renderEstimate();
+  renderHelp();
+  updateProcText();
+  updateLangBtn();
+}
+
+function updateLangBtn() {
+  const btn = $("#langBtn");
+  if (!btn) return;
+  const code = btn.querySelector(".lang-code");
+  const next = LANG === "en" ? "AR" : "EN";
+  if (code) code.textContent = next;
+  const label = LANG === "en" ? "التبديل إلى العربية" : "Switch to English";
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+}
+
+/* ============================================================
+   2. Settings & profiles
+   ============================================================ */
+const STORE_KEY = "pdfc.settings.v1";
+const LANG_KEY = "pdfc.lang";
+const THEME_KEY = "pdfc.theme";
+const HIST_KEY = "pdfc.history.v1";
+
+const DEFAULT_SETTINGS = {
+  profile: "recommended",
+  method: "smart",
+  strength: 40,
+  targetEnabled: false,
+  targetValue: 2,
+  targetUnit: "MB",
+  autoPerFile: true,
+  adv: {
+    dpi: 150,
+    quality: 0.75,
+    minImageKB: 12,
+    grayscale: false,
+    recompress: true,
+    preserveHq: true,
+    objStreams: true,
+    removeMeta: false,
+    compat: "modern",
+    preserveText: true,
+    preserveLinks: true,
+    preserveBookmarks: true,
+    preserveAnnots: true,
+    preserveForms: true,
+    allowRaster: false
+  }
+};
+
+const PROFILES = {
+  maximumQuality: { strength: 8,  method: "lossless" },
+  recommended:    { strength: 40, method: "smart" },
+  smallUpload:    { strength: 65, method: "smart" },
+  maxCompression: { strength: 92, method: "images" },
+  scanned:        { strength: 74, method: "images" },
+  office:         { strength: 45, method: "images" },
+  email:          { strength: 78, method: "images" },
+  archive:        { strength: 10, method: "lossless" },
+  custom:         { strength: null, method: null }
+};
+const PROFILE_ORDER = ["maximumQuality", "recommended", "smallUpload", "maxCompression", "scanned", "office", "email", "archive", "custom"];
+const PROFILE_LABEL = {
+  maximumQuality: "pMaximumQuality", recommended: "pRecommended", smallUpload: "pSmallUpload",
+  maxCompression: "pMaxCompression", scanned: "pScanned", office: "pOffice",
+  email: "pEmail", archive: "pArchive", custom: "pCustom"
+};
+
+let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      settings = Object.assign({}, DEFAULT_SETTINGS, p);
+      settings.adv = Object.assign({}, DEFAULT_SETTINGS.adv, p.adv || {});
+    }
+  } catch (e) { /* ignore */ }
+  try {
+    const l = localStorage.getItem(LANG_KEY);
+    if (l === "ar" || l === "en") LANG = l;
+  } catch (e) {}
+}
+function saveSettings() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) {}
+}
+
+function strengthParams(s) {
+  const t = clamp(s, 0, 100) / 100;
+  const dpi = Math.round((300 - 204 * t) / 6) * 6;
+  const quality = +clamp(0.92 - 0.52 * t, 0.3, 0.95).toFixed(2);
+  return { dpi: clamp(dpi, 96, 300), quality: quality };
+}
+function strengthLabel(s) {
+  if (s <= 15) return t("sLight");
+  if (s <= 50) return t("sBalanced");
+  if (s <= 78) return t("sStrong");
+  return t("sMaximum");
+}
+function strengthHintFor(s) {
+  if (s <= 15) return t("hLight");
+  if (s <= 50) return t("hBalanced");
+  if (s <= 78) return t("hStrong");
+  return t("hMaximum");
+}
+function applyProfile(name, keepMethod) {
+  settings.profile = name;
+  const p = PROFILES[name];
+  if (p && p.strength !== null) {
+    settings.strength = p.strength;
+    if (!keepMethod) settings.method = p.method;
+    const sp = strengthParams(settings.strength);
+    settings.adv.dpi = sp.dpi;
+    settings.adv.quality = sp.quality;
+  }
+  syncSettingsUI();
+  saveSettings();
+  renderEstimate();
+  renderQueue();
+}
+
+/* ============================================================
+   3. PDF engine helpers
+   ============================================================ */
+const HAS_PDFLIB = () => typeof window.PDFLib !== "undefined";
+const HAS_PDFJS  = () => typeof window.pdfjsLib !== "undefined";
+
+let pdfjsConfigured = false;
+function configurePdfJs() {
+  if (pdfjsConfigured || !HAS_PDFJS()) return;
+  try {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  } catch (e) {}
+  pdfjsConfigured = true;
+}
+
+function CancelError() { this.name = "CancelError"; this.message = "cancelled"; }
+CancelError.prototype = Object.create(Error.prototype);
+let cancelFlag = false;
+
+class UserError extends Error {
+  constructor(key, detail) { super(key); this.key = key; this.detail = detail; }
+}
+
+/* --- low level pdf-lib helpers --- */
+function nameOf(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v.asString === "function") return String(v.asString()).replace(/^\//, "");
+  if (typeof v.asName === "function") return String(v.asName()).replace(/^\//, "");
+  return String(v).replace(/^\//, "");
+}
+function boolOf(v) {
+  if (!v) return false;
+  if (typeof v.asBoolean === "function") return v.asBoolean();
+  return String(v) === "true";
+}
+function numOf(ctx, dict, key, def) {
+  try {
+    const { PDFName } = window.PDFLib;
+    let v = dict.get(PDFName.of(key));
+    if (v === undefined || v === null) return def;
+    v = ctx.lookup(v);
+    if (v && typeof v.asNumber === "function") return v.asNumber();
+    const n = Number(String(v));
+    return isFinite(n) ? n : def;
+  } catch (e) { return def; }
+}
+function filterList(ctx, dict) {
+  const { PDFName, PDFArray } = window.PDFLib;
+  try {
+    const f = ctx.lookup(dict.get(PDFName.of("Filter")));
+    if (!f) return [];
+    const arr = f instanceof PDFArray ? f.asArray() : [f];
+    return arr.map(x => nameOf(ctx.lookup(x)));
+  } catch (e) { return []; }
+}
+function colorSpaceKind(ctx, dict) {
+  const { PDFName, PDFArray } = window.PDFLib;
+  try {
+    const cs = ctx.lookup(dict.get(PDFName.of("ColorSpace")));
+    if (!cs) return { kind: "RGB", colors: 3 };
+    if (cs instanceof PDFName) {
+      const n = nameOf(cs);
+      if (n === "DeviceGray" || n === "G" || n === "CalGray") return { kind: "GRAY", colors: 1 };
+      if (n === "DeviceRGB" || n === "RGB" || n === "CalRGB") return { kind: "RGB", colors: 3 };
+      return { kind: "OTHER", colors: 0 };
+    }
+    if (cs instanceof PDFArray) {
+      const arr = cs.asArray();
+      const fam = nameOf(ctx.lookup(arr[0]));
+      if (fam === "ICCBased" && arr[1]) {
+        const icc = ctx.lookup(arr[1]);
+        if (icc && icc.dict) {
+          const n = numOf(ctx, icc.dict, "N", 3);
+          if (n === 1) return { kind: "GRAY", colors: 1 };
+          if (n === 3) return { kind: "RGB", colors: 3 };
+        }
+      }
+      if (fam === "Indexed" || fam === "I") return { kind: "OTHER", colors: 0 };
+      return { kind: "OTHER", colors: 0 };
+    }
+    return { kind: "RGB", colors: 3 };
+  } catch (e) { return { kind: "OTHER", colors: 0 }; }
+}
+
+/* --- native inflate/deflate --- */
+async function inflateBytes(bytes) {
+  if (typeof DecompressionStream === "undefined") throw new Error("no-decompression-stream");
+  const tryOnce = async (fmt) => {
+    const ds = new DecompressionStream(fmt);
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    const buf = await new Response(stream).arrayBuffer();
+    return new Uint8Array(buf);
+  };
+  try { return await tryOnce("deflate"); }
+  catch (e1) { return await tryOnce("deflate-raw"); }
+}
+
+/* --- PNG/TIFF predictor undo --- */
+function undoPredictor(data, predictor, colors, bpc, columns) {
+  const bpp = Math.max(1, Math.ceil((colors * bpc) / 8));
+  const rowLen = Math.ceil((colors * bpc * columns) / 8);
+  if (rowLen <= 0) return data;
+  if (predictor === 2) {
+    const rows = Math.floor(data.length / rowLen);
+    for (let r = 1; r < rows; r++) {
+      const o = r * rowLen, p = o - rowLen;
+      for (let i = 0; i < rowLen; i++) data[o + i] = (data[o + i] + data[p + i]) & 0xff;
+    }
+    return data;
+  }
+  const stride = rowLen + 1;
+  const rows = Math.floor(data.length / stride);
+  const out = new Uint8Array(rowLen * rows);
+  let prev = new Uint8Array(rowLen);
+  let o = 0;
+  for (let r = 0; r < rows; r++) {
+    const base = r * stride;
+    const ft = data[base];
+    const cur = new Uint8Array(rowLen);
+    for (let i = 0; i < rowLen; i++) {
+      const raw = data[base + 1 + i];
+      const a = i >= bpp ? cur[i - bpp] : 0;
+      const b = prev[i];
+      const c = i >= bpp ? prev[i - bpp] : 0;
+      let v = raw;
+      switch (ft) {
+        case 0: break;
+        case 1: v = (raw + a) & 255; break;
+        case 2: v = (raw + b) & 255; break;
+        case 3: v = (raw + ((a + b) >> 1)) & 255; break;
+        case 4: {
+          const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+          const pr = (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+          v = (raw + pr) & 255; break;
+        }
+        default: v = raw;
+      }
+      cur[i] = v;
+    }
+    out.set(cur, o); o += rowLen;
+    prev = cur;
+  }
+  return out;
+}
+
+/* ============================================================
+   4. Analysis
+   ============================================================ */
+async function analyzePdf(bytes) {
+  const { PDFDocument, PDFName, PDFRawStream } = window.PDFLib;
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false, throwOnInvalidObject: false });
+  const ctx = doc.context;
+  const pages = doc.getPages();
+  const pageCount = pages.length;
+
+  let maxPageW = 612, maxPageH = 792;
+  for (let i = 0; i < pages.length; i++) {
+    try {
+      const s = pages[i].getSize();
+      if (s.width > maxPageW) maxPageW = s.width;
+      if (s.height > maxPageH) maxPageH = s.height;
+    } catch (e) {}
+  }
+
+  const images = [];
+  let imageBytes = 0, imagePixels = 0, jpegCount = 0, flateCount = 0, otherCount = 0;
+
+  const objs = ctx.enumerateIndirectObjects();
+  for (let i = 0; i < objs.length; i++) {
+    const ref = objs[i][0], obj = objs[i][1];
+    if (!(obj instanceof PDFRawStream)) continue;
+    const dict = obj.dict;
+    const sub = nameOf(ctx.lookup(dict.get(PDFName.of("Subtype"))));
+    if (sub !== "Image") continue;
+    const w = numOf(ctx, dict, "Width", 0);
+    const h = numOf(ctx, dict, "Height", 0);
+    if (!w || !h) continue;
+    const len = obj.contents ? obj.contents.length : 0;
+    const filters = filterList(ctx, dict);
+    const isJpeg = filters.indexOf("DCTDecode") !== -1;
+    const isFlate = filters.indexOf("FlateDecode") !== -1 && filters.length === 1;
+    const bpc = numOf(ctx, dict, "BitsPerComponent", 8);
+    const hasSMask = !!dict.get(PDFName.of("SMask"));
+    const hasMask = !!dict.get(PDFName.of("Mask"));
+    const isMask = boolOf(ctx.lookup(dict.get(PDFName.of("ImageMask"))));
+    const cs = colorSpaceKind(ctx, dict);
+
+    images.push({
+      w: w, h: h, len: len, isJpeg: isJpeg, isFlate: isFlate,
+      bpc: bpc, alpha: hasSMask || hasMask, mask: isMask,
+      colors: cs.colors, simpleFilter: filters.length === 1
+    });
+    imageBytes += len;
+    imagePixels += w * h;
+    if (isJpeg) jpegCount++;
+    else if (isFlate) flateCount++;
+    else otherCount++;
+    if (images.length >= 4000) break;
+  }
+
+  const hasText = await detectTextLayer(doc);
+  const fileSize = bytes.length;
+  const imageRatio = fileSize > 0 ? imageBytes / fileSize : 0;
+  const avgDpi = images.length
+    ? Math.round(images.reduce((a, im) => a + (im.w / (maxPageW / 72)), 0) / images.length)
+    : 0;
+
+  let type = "mixed";
+  const scanned = !hasText && images.length > 0 && imageRatio > 0.45;
+  const imageHeavy = images.length > 0 && imageRatio > 0.5;
+  if (scanned) type = "scanned";
+  else if (hasText && imageRatio < 0.3) type = "text";
+  else if (imageHeavy) type = "image";
+
+  return {
+    pageCount: pageCount,
+    fileSize: fileSize,
+    images: images,
+    imageCount: images.length,
+    imageBytes: imageBytes,
+    imagePixels: imagePixels,
+    imageRatio: imageRatio,
+    jpegCount: jpegCount,
+    flateCount: flateCount,
+    otherCount: otherCount,
+    hasText: hasText,
+    scanned: scanned,
+    imageHeavy: imageHeavy,
+    avgDpi: avgDpi,
+    maxPageW: maxPageW,
+    maxPageH: maxPageH,
+    type: type
+  };
+}
+
+async function detectTextLayer(doc) {
+  const { PDFName, PDFRawStream, PDFArray } = window.PDFLib;
+  try {
+    const ctx = doc.context;
+    const pages = doc.getPages().slice(0, 3);
+    for (let pi = 0; pi < pages.length; pi++) {
+      const cRaw = pages[pi].node.get(PDFName.of("Contents"));
+      const resolved = cRaw ? ctx.lookup(cRaw) : null;
+      const streams = [];
+      if (resolved instanceof PDFRawStream) streams.push(resolved);
+      else if (resolved instanceof PDFArray) {
+        resolved.asArray().forEach(r => {
+          const s = ctx.lookup(r);
+          if (s instanceof PDFRawStream) streams.push(s);
+        });
+      }
+      let text = "";
+      for (let si = 0; si < streams.length; si++) {
+        const st = streams[si];
+        const filters = filterList(ctx, st.dict);
+        let data = st.contents;
+        if (filters.length === 0) { /* raw */ }
+        else if (filters.length === 1 && filters[0] === "FlateDecode") {
+          try { data = await inflateBytes(data); }
+          catch (e) { return true; }
+        } else {
+          continue;
+        }
+        text += latin1(data, 160000);
+        if (text.length > 400000) break;
+      }
+      if (/\bTj\b|\bTJ\b|\bTf\b|\bTd\b/.test(text)) return true;
+    }
+    return false;
+  } catch (e) {
+    return true; // be conservative: assume text exists
+  }
+}
+
+/* ============================================================
+   5. Estimation
+   ============================================================ */
+function resolveMethod(analysis, s) {
+  let m = s.method;
+  const adv = s.adv;
+  if (m === "smart") {
+    if (!analysis) return "lossless";
+    if (analysis.scanned) m = "images";
+    else if (analysis.imageHeavy) m = "images";
+    else if (analysis.type === "text") m = "lossless";
+    else if (analysis.imageCount > 0 && analysis.imageRatio > 0.2) m = "images";
+    else m = "lossless";
+    if (m === "images" && s.strength >= 88 && adv.allowRaster && !adv.preserveText) m = "raster";
+  }
+  if (m === "raster" && !adv.allowRaster && s.method !== "raster") m = "images";
+  return m;
+}
+
+/* Plans per-image action for estimation */
+function planImages(analysis, s) {
+  const adv = s.adv;
+  const maxW = (analysis.maxPageW / 72) * adv.dpi;
+  const maxH = (analysis.maxPageH / 72) * adv.dpi;
+  let estTotal = 0, origTotal = 0, changed = 0, pixelFactorNum = 0, pixelFactorDen = 0;
+
+  for (let i = 0; i < analysis.images.length; i++) {
+    const im = analysis.images[i];
+    origTotal += im.len;
+    let action = "skip";
+    let nw = im.w, nh = im.h;
+
+    const usable = !im.mask && !im.alpha && im.bpc === 8 &&
+                   im.simpleFilter && (im.isJpeg || im.isFlate) &&
+                   (im.colors === 1 || im.colors === 3) &&
+                   im.len >= adv.minImageKB * 1024;
+
+    if (usable) {
+      const scale = Math.min(1, maxW / im.w, maxH / im.h);
+      const downsampled = scale < 0.95;
+      const bpp = im.len / (im.w * im.h);
+      if (!(adv.preserveHq && !downsampled && bpp < 0.12)) {
+        if (adv.recompress || downsampled) {
+          action = "recompress";
+          nw = Math.max(1, Math.round(im.w * scale));
+          nh = Math.max(1, Math.round(im.h * scale));
+        }
+      }
+    }
+
+    if (action === "skip") {
+      estTotal += im.len;
+    } else {
+      changed++;
+      const q = adv.quality;
+      let est = nw * nh * 0.22 * q * q;
+      est = Math.min(est, im.len * 0.96);
+      if (est < 900) est = Math.min(im.len, 900);
+      estTotal += est;
+      pixelFactorNum += (nw * nh) / (im.w * im.h);
+      pixelFactorDen++;
+    }
+  }
+  return {
+    imageEstimate: estTotal,
+    originalImageBytes: origTotal,
+    changedImages: changed,
+    avgPixelFactor: pixelFactorDen ? pixelFactorNum / pixelFactorDen : 1
+  };
+}
+
+function estimateOutput(analysis, s) {
+  if (!analysis) return null;
+  const method = resolveMethod(analysis, s);
+  const original = analysis.fileSize;
+
+  if (method === "lossless") {
+    const lo = original * 0.90, hi = original * 0.995;
+    return { lo: Math.min(lo, original), hi: Math.min(hi, original), method: method };
+  }
+  if (method === "raster") {
+    const dpi = s.adv.dpi;
+    const q = s.adv.quality;
+    const pxPerPage = (analysis.maxPageW / 72 * dpi) * (analysis.maxPageH / 72 * dpi);
+    const perPage = pxPerPage * 0.20 * q * q + 1200;
+    const total = perPage * Math.max(1, analysis.pageCount) * 1.05;
+    return { lo: total * 0.75, hi: total * 1.28, method: method };
+  }
+  const plan = planImages(analysis, s);
+  const imageBytes = analysis.imageBytes || 0;
+  const other = Math.max(0, original - imageBytes);
+  const total = other * 0.985 + plan.imageEstimate;
+  return {
+    lo: Math.max(1200, total * 0.84),
+    hi: Math.max(1500, total * 1.18),
+    method: method,
+    changedImages: plan.changedImages,
+    imageCount: analysis.imageCount
+  };
+}
+
+function qualityWordFor(method, strength) {
+  if (method === "raster") return strength >= 80 ? t("qualityFair") : t("qualityGood");
+  if (method === "lossless") return t("qualityExcellent");
+  if (strength <= 15) return t("qualityExcellent");
+  if (strength <= 45) return t("qualityVeryGood");
+  if (strength <= 75) return t("qualityGood");
+  return t("qualityFair");
+}
+function qualityPillClass(word) {
+  if (word === t("qualityExcellent") || word === t("qualityVeryGood")) return "pill g";
+  if (word === t("qualityGood")) return "pill";
+  return "pill w";
+}
+
+/* ============================================================
+   6. Core compression engines
+   ============================================================ */
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((res, rej) => {
+    try {
+      canvas.toBlob(b => (b ? res(b) : rej(new Error("toBlob failed"))), type, quality);
+    } catch (e) { rej(e); }
+  });
+}
+async function decodeImageBlob(blob) {
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(blob); } catch (e) { /* fall through */ }
+  }
+  return await new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("image decode failed")); };
+    img.src = url;
+  });
+}
+function imgDims(img) {
+  return {
+    w: img.naturalWidth || img.width || 1,
+    h: img.naturalHeight || img.height || 1
+  };
+}
+
+/* ---------- Method A: lossless optimisation ---------- */
+async function compressLossless(input, params, onProgress) {
+  const { PDFDocument } = window.PDFLib;
+  onProgress(0.1);
+  const doc = await PDFDocument.load(input, { updateMetadata: !!params.removeMeta, throwOnInvalidObject: false });
+  onProgress(0.4);
+  await yieldUI();
+  if (params.removeMeta) {
+    try {
+      doc.setTitle(""); doc.setAuthor(""); doc.setSubject("");
+      doc.setKeywords([]); doc.setProducer(""); doc.setCreator("");
+    } catch (e) {}
+  }
+  onProgress(0.6);
+  await yieldUI();
+  const out = await doc.save({
+    useObjectStreams: !!params.objStreams,
+    addDefaultPage: false,
+    objectsPerTick: 200
+  });
+  onProgress(1);
+  return { bytes: out, method: "lossless", dpi: 0, quality: 0, imagesChanged: 0 };
+}
+
+/* ---------- Method B: image optimisation ---------- */
+async function compressImages(input, params, analysis, onProgress) {
+  const { PDFDocument, PDFName, PDFRawStream, PDFNumber } = window.PDFLib;
+  const doc = await PDFDocument.load(input, { updateMetadata: !!params.removeMeta, throwOnInvalidObject: false });
+  const ctx = doc.context;
+
+  const targets = [];
+  const objs = ctx.enumerateIndirectObjects();
+  for (let i = 0; i < objs.length; i++) {
+    const ref = objs[i][0], obj = objs[i][1];
+    if (obj instanceof PDFRawStream && nameOf(ctx.lookup(obj.dict.get(PDFName.of("Subtype")))) === "Image") {
+      targets.push({ ref: ref, obj: obj, dict: obj.dict });
+    }
+  }
+
+  const maxW = (analysis.maxPageW / 72) * params.dpi;
+  const maxH = (analysis.maxPageH / 72) * params.dpi;
+  const opts = {
+    maxW: maxW, maxH: maxH,
+    quality: params.quality,
+    grayscale: !!params.grayscale,
+    minBytes: params.minImageKB * 1024,
+    preserveHq: !!params.preserveHq,
+    recompress: !!params.recompress
+  };
+
+  let done = 0, changed = 0;
+  const total = Math.max(1, targets.length);
+  for (let i = 0; i < targets.length; i++) {
+    if (cancelFlag) throw new CancelError();
+    try {
+      const r = await optimizeOneImage(ctx, targets[i], opts);
+      if (r) changed++;
+    } catch (e) {
+      if (e && e.name === "CancelError") throw e;
+      // skip this image silently — one bad image must not break the document
+    }
+    done++;
+    onProgress(done / total);
+    if (done % 3 === 0) await yieldUI();
+  }
+
+  await yieldUI();
+  const out = await doc.save({
+    useObjectStreams: !!params.objStreams,
+    addDefaultPage: false,
+    objectsPerTick: 200
+  });
+  return { bytes: out, method: "images", dpi: params.dpi, quality: params.quality, imagesChanged: changed };
+}
+
+async function optimizeOneImage(ctx, tgt, o) {
+  const { PDFName, PDFRawStream, PDFNumber } = window.PDFLib;
+  const dict = tgt.dict;
+
+  const filters = filterList(ctx, dict);
+  if (filters.length !== 1) return false;
+  const f = filters[0];
+  const isJpeg = f === "DCTDecode";
+  const isFlate = f === "FlateDecode";
+  if (!isJpeg && !isFlate) return false;
+
+  if (boolOf(ctx.lookup(dict.get(PDFName.of("ImageMask"))))) return false;
+  if (dict.get(PDFName.of("SMask")) || dict.get(PDFName.of("Mask"))) return false;
+
+  const w = numOf(ctx, dict, "Width", 0);
+  const h = numOf(ctx, dict, "Height", 0);
+  if (!w || !h || w < 8 || h < 8) return false;
+  if (w * h > 80e6) return false; // too large to safely handle
+
+  const bpc = numOf(ctx, dict, "BitsPerComponent", 8);
+  if (bpc !== 8) return false;
+
+  const cs = colorSpaceKind(ctx, dict);
+  if (cs.colors !== 1 && cs.colors !== 3) return false;
+
+  const origLen = tgt.obj.contents ? tgt.obj.contents.length : 0;
+  if (origLen < o.minBytes) return false;
+
+  const scale = Math.min(1, o.maxW / w, o.maxH / h);
+  const downsampled = scale < 0.95;
+  const bpp = origLen / (w * h);
+  if (o.preserveHq && !downsampled && bpp < 0.12) return false;
+  if (!o.recompress && !downsampled) return false;
+
+  // ---- build source canvas ----
+  const srcCanvas = document.createElement("canvas");
+  srcCanvas.width = w;
+  srcCanvas.height = h;
+  const sg = srcCanvas.getContext("2d", { alpha: false });
+  if (!sg) return false;
+
+  if (isJpeg) {
+    let bmp = null;
+    try {
+      bmp = await decodeImageBlob(new Blob([tgt.obj.contents], { type: "image/jpeg" }));
+      const d = imgDims(bmp);
+      sg.drawImage(bmp, 0, 0, w, h);
+      if (typeof bmp.close === "function") bmp.close();
+      if (!d.w) return false;
+    } catch (e) {
+      if (bmp && typeof bmp.close === "function") bmp.close();
+      return false;
+    }
+  } else {
+    const imgData = await flateToImageData(ctx, dict, tgt.obj, w, h, cs.colors);
+    if (!imgData) return false;
+    sg.putImageData(imgData, 0, 0);
+  }
+
+  if (cancelFlag) throw new CancelError();
+
+  // ---- target canvas ----
+  const nw = Math.max(1, Math.round(w * scale));
+  const nh = Math.max(1, Math.round(h * scale));
+  const dst = document.createElement("canvas");
+  dst.width = nw;
+  dst.height = nh;
+  const dg = dst.getContext("2d", { alpha: false });
+  if (!dg) return false;
+  dg.fillStyle = "#ffffff";
+  dg.fillRect(0, 0, nw, nh);
+  dg.drawImage(srcCanvas, 0, 0, w, h, 0, 0, nw, nh);
+
+  if (o.grayscale) {
+    try {
+      const id = dg.getImageData(0, 0, nw, nh);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
+        d[i] = d[i + 1] = d[i + 2] = g;
+      }
+      dg.putImageData(id, 0, 0);
+    } catch (e) { /* tainted canvas — impossible here, but be safe */ }
+  }
+
+  let quality = o.quality;
+  if (!downsampled) quality = Math.min(quality, 0.88);
+
+  let blob;
+  try { blob = await canvasToBlob(dst, "image/jpeg", quality); }
+  catch (e) { return false; }
+
+  const newBytes = new Uint8Array(await blob.arrayBuffer());
+  srcCanvas.width = srcCanvas.height = 0;
+  dst.width = dst.height = 0;
+
+  if (newBytes.length >= origLen * 0.94) return false;
+
+  // ---- swap stream ----
+  try {
+    dict.set(PDFName.of("Filter"), PDFName.of("DCTDecode"));
+    dict.delete(PDFName.of("DecodeParms"));
+    dict.delete(PDFName.of("DP"));
+    dict.delete(PDFName.of("Decode"));
+    dict.set(PDFName.of("Width"), PDFNumber.of(nw));
+    dict.set(PDFName.of("Height"), PDFNumber.of(nh));
+    dict.set(PDFName.of("BitsPerComponent"), PDFNumber.of(8));
+    dict.set(PDFName.of("ColorSpace"),
+      PDFName.of((o.grayscale || cs.colors === 1) ? "DeviceGray" : "DeviceRGB"));
+    dict.set(PDFName.of("Length"), PDFNumber.of(newBytes.length));
+    ctx.assign(tgt.ref, PDFRawStream.of(dict, newBytes));
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+
+async function flateToImageData(ctx, dict, stream, w, h, colorsHint) {
+  const { PDFName, PDFDict, PDFArray } = window.PDFLib;
+  let parms = ctx.lookup(dict.get(PDFName.of("DecodeParms"))) ||
+              ctx.lookup(dict.get(PDFName.of("DP")));
+  if (parms instanceof PDFArray) {
+    const arr = parms.asArray();
+    let found = null;
+    for (let i = 0; i < arr.length; i++) {
+      const r = ctx.lookup(arr[i]);
+      if (r instanceof PDFDict) { found = r; break; }
+    }
+    parms = found;
+  }
+  let predictor = 1, colors = colorsHint || 3, bpc = 8, columns = w;
+  if (parms instanceof PDFDict) {
+    predictor = numOf(ctx, parms, "Predictor", 1);
+    colors = numOf(ctx, parms, "Colors", colors);
+    bpc = numOf(ctx, parms, "BitsPerComponent", 8);
+    columns = numOf(ctx, parms, "Columns", w);
+  }
+  if (bpc !== 8) return null;
+  if (colors !== 1 && colors !== 3) return null;
+  if (columns !== w) return null;
+
+  let raw;
+  try { raw = await inflateBytes(stream.contents); }
+  catch (e) { return null; }
+
+  let data = raw;
+  if (predictor > 1) {
+    try { data = undoPredictor(raw, predictor, colors, bpc, columns); }
+    catch (e) { return null; }
+  }
+  const need = w * h * colors;
+  if (data.length < need) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const c2 = canvas.getContext("2d");
+  if (!c2) return null;
+  const img = c2.createImageData(w, h);
+  const d = img.data;
+  if (colors === 1) {
+    for (let i = 0, j = 0; i < w * h; i++, j += 4) {
+      const v = data[i]; d[j] = v; d[j + 1] = v; d[j + 2] = v; d[j + 3] = 255;
+    }
+  } else {
+    for (let i = 0, j = 0; i < w * h; i++, j += 4) {
+      const k = i * 3;
+      d[j] = data[k]; d[j + 1] = data[k + 1]; d[j + 2] = data[k + 2]; d[j + 3] = 255;
+    }
+  }
+  canvas.width = 0; canvas.height = 0;
+  return img;
+}
+
+/* ---------- Method C: rasterisation ---------- */
+async function compressRaster(input, params, analysis, onProgress) {
+  configurePdfJs();
+  if (!HAS_PDFJS()) throw new UserError("errorUnsupported", "pdf.js unavailable");
+  const { PDFDocument } = window.PDFLib;
+  const pdfjs = window.pdfjsLib;
+
+  const data = input.slice(0);
+  const loadingTask = pdfjs.getDocument({
+    data: data,
+    isEvalSupported: false,
+    disableAutoFetch: true,
+    disableStream: true
+  });
+  const pdf = await loadingTask.promise;
+
+  try {
+    const outDoc = await PDFDocument.create();
+    const n = pdf.numPages;
+    const dpi = params.dpi;
+    const q = params.quality;
+
+    for (let i = 1; i <= n; i++) {
+      if (cancelFlag) throw new CancelError();
+      const page = await pdf.getPage(i);
+      const vp1 = page.getViewport({ scale: 1 });
+      let scale = dpi / 72;
+
+      // Guard against absurd canvas sizes (mobile memory limits)
+      const maxDim = 6000;
+      const rawW = vp1.width * scale, rawH = vp1.height * scale;
+      if (rawW > maxDim || rawH > maxDim) {
+        scale *= Math.min(maxDim / rawW, maxDim / rawH);
+      }
+
+      const vp = page.getViewport({ scale: scale });
+      const cw = Math.max(1, Math.floor(vp.width));
+      const ch = Math.max(1, Math.floor(vp.height));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      const c2 = canvas.getContext("2d", { alpha: false });
+      if (!c2) throw new UserError("errorMemory");
+      c2.fillStyle = "#ffffff";
+      c2.fillRect(0, 0, cw, ch);
+
+      await page.render({ canvasContext: c2, viewport: vp }).promise;
+      if (cancelFlag) { canvas.width = canvas.height = 0; throw new CancelError(); }
+
+      if (params.grayscale) {
+        try {
+          const id = c2.getImageData(0, 0, cw, ch);
+          const d = id.data;
+          for (let k = 0; k < d.length; k += 4) {
+            const g = (d[k] * 0.299 + d[k + 1] * 0.587 + d[k + 2] * 0.114) | 0;
+            d[k] = d[k + 1] = d[k + 2] = g;
+          }
+          c2.putImageData(id, 0, 0);
+        } catch (e) {}
+      }
+
+      let blob;
+      try { blob = await canvasToBlob(canvas, "image/jpeg", q); }
+      catch (e) { canvas.width = canvas.height = 0; throw new UserError("errorMemory"); }
+
+      const jpgBytes = new Uint8Array(await blob.arrayBuffer());
+      canvas.width = canvas.height = 0;
+      page.cleanup();
+
+      const img = await outDoc.embedJpg(jpgBytes);
+      const p = outDoc.addPage([vp1.width, vp1.height]);
+      p.drawImage(img, { x: 0, y: 0, width: vp1.width, height: vp1.height });
+
+      onProgress(i / n);
+      await yieldUI();
+    }
+
+    const out = await outDoc.save({ useObjectStreams: !!params.objStreams, addDefaultPage: false });
+    return { bytes: out, method: "raster", dpi: dpi, quality: q, imagesChanged: n };
+  } finally {
+    try { await pdf.destroy(); } catch (e) {}
+  }
+}
+
+/* ============================================================
+   7. Output validation
+   ============================================================ */
+async function validatePdfOutput(bytes, expectedPages) {
+  if (!bytes || bytes.length < 20) throw new Error("too small");
+  const head = latin1(bytes.subarray(0, 8));
+  if (head.indexOf("%PDF-") !== 0) throw new Error("bad header");
+  const tail = latin1(bytes.subarray(Math.max(0, bytes.length - 2048)));
+  if (tail.indexOf("%%EOF") === -1) throw new Error("missing EOF");
+  const { PDFDocument } = window.PDFLib;
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false, throwOnInvalidObject: false });
+  const pages = doc.getPageCount();
+  if (expectedPages && pages !== expectedPages) {
+    // warn but accept — some methods legitimately change count (should not happen here)
+  }
+  return { pages: pages };
+}
+
+/* ============================================================
+   8. Parameter building
+   ============================================================ */
+function buildParams(s) {
+  return {
+    dpi: clamp(Number(s.adv.dpi) || 150, 36, 600),
+    quality: clamp(Number(s.adv.quality) || 0.75, 0.3, 0.95),
+    grayscale: !!s.adv.grayscale,
+    minImageKB: clamp(Number(s.adv.minImageKB) || 0, 0, 5000),
+    recompress: !!s.adv.recompress,
+    preserveHq: !!s.adv.preserveHq,
+    objStreams: !!s.adv.objStreams,
+    removeMeta: !!s.adv.removeMeta,
+    allowRaster: !!s.adv.allowRaster,
+    preserveText: !!s.adv.preserveText
+  };
+}
+
+function escalationLevels(analysis, baseSettings) {
+  // Returns a list of settings variants to try (progressively stronger)
+  const list = [];
+  const s0 = JSON.parse(JSON.stringify(baseSettings));
+  list.push(s0);
+
+  if (!analysis) return list;
+  const baseMethod = resolveMethod(analysis, s0);
+  if (baseMethod === "lossless") return list; // nothing to escalate meaningfully
+
+  for (let i = 1; i <= 2; i++) {
+    const s = JSON.parse(JSON.stringify(baseSettings));
+    s.strength = clamp(baseSettings.strength + i * 18, 0, 100);
+    s.adv.dpi = Math.max(72, Math.round(baseSettings.adv.dpi * (1 - i * 0.22)));
+    s.adv.quality = clamp(+(baseSettings.adv.quality * (1 - i * 0.16)).toFixed(2), 0.3, 0.95);
+    if (i === 2 && baseSettings.adv.allowRaster) s.method = "raster";
+    list.push(s);
+  }
+  return list;
+}
+
+/* ============================================================
+   9. File queue
+   ============================================================ */
+const state = {
+  files: [],
+  busy: false,
+  history: []
+};
+
+function fileStatusLabel(st) {
+  switch (st) {
+    case "queued": return t("queued");
+    case "analysing": return t("analysing");
+    case "ready": return t("ready");
+    case "compressing": return t("compressing");
+    case "done": return t("done");
+    case "error": return t("failed");
+    case "cancelled": return t("cancelled");
+    default: return "";
+  }
+}
+
+function effectiveSettings(item) {
+  if (item.useCustom) {
+    const s = JSON.parse(JSON.stringify(settings));
+    s.method = item.custom.method;
+    s.strength = item.custom.strength;
+    const sp = strengthParams(item.custom.strength);
+    s.adv.dpi = sp.dpi;
+    s.adv.quality = sp.quality;
+    return s;
+  }
+  return settings;
+}
+
+function fileTypeLabel(analysis) {
+  if (!analysis) return "—";
+  if (analysis.type === "scanned") return t("fileTypeScanned");
+  if (analysis.type === "image") return t("fileTypeImage");
+  if (analysis.type === "text") return t("fileTypeText");
+  return t("fileTypeMixed");
+}
+
+/* ============================================================
+   10. Rendering
+   ============================================================ */
+function buildProfileSelect() {
+  const sel = $("#profileSel");
+  if (!sel) return;
+  const cur = settings.profile;
+  sel.innerHTML = PROFILE_ORDER.map(k =>
+    `<option value="${k}"${k === cur ? " selected" : ""}>${esc(t(PROFILE_LABEL[k]))}</option>`
+  ).join("");
+}
+function buildStrengthBadge() {
+  const b = $("#strengthBadge");
+  if (b) b.textContent = strengthLabel(settings.strength);
+  const h = $("#strengthHint");
+  if (h) h.textContent = strengthHintFor(settings.strength);
+}
+
+function renderQueue() {
+  const section = $("#queueSection");
+  const list = $("#queueList");
+  if (!state.files.length) {
+    section.hidden = true;
+    list.innerHTML = "";
+    $("#settingsCard").hidden = true;
+    $("#totalsBox").innerHTML = "";
+    return;
+  }
+  section.hidden = false;
+  $("#settingsCard").hidden = false;
+
+  const sub = $("#queueSub");
+  sub.textContent = state.files.length + " " + t("filesCount");
+
+  list.innerHTML = state.files.map(fileCardHTML).join("");
+  renderTotals();
+  updateDownloadAll();
+}
+
+function fileCardHTML(f) {
+  const s = effectiveSettings(f);
+  const est = f.analysis ? estimateOutput(f.analysis, s) : null;
+  const a = f.analysis;
+
+  let meta = `<span>${fmtBytes(f.size)}</span>`;
+  if (a) {
+    meta += `<span>${a.pageCount} ${a.pageCount === 1 ? t("page") : t("pages")}</span>`;
+    meta += `<span>${a.imageCount ? a.imageCount + " " + t("images") : t("noImages")}</span>`;
+    meta += `<span>${esc(fileTypeLabel(a))}</span>`;
+  }
+
+  let statusLine = "";
+  if (f.status === "compressing" || f.status === "analysing") {
+    statusLine = `
+      <div class="progress"><i id="bar-${f.id}" style="width:${Math.round(f.progress * 100)}%"></i></div>
+      <div class="fc-status">
+        <span id="st-${f.id}">${esc(f.message || fileStatusLabel(f.status))}</span>
+        <span id="pct-${f.id}">${Math.round(f.progress * 100)}%</span>
+      </div>`;
+  } else {
+    statusLine = `<div class="fc-status"><span id="st-${f.id}">${esc(f.message || fileStatusLabel(f.status))}</span>
+      <span>${est ? t("estEstimated") + ": " + fmtBytes((est.lo + est.hi) / 2) : ""}</span></div>`;
+  }
+
+  let resultBlock = "";
+  if (f.status === "done" && f.result) {
+    const r = f.result;
+    const reduction = f.size > 0 ? ((f.size - r.size) / f.size) * 100 : 0;
+    const qWord = qualityWordFor(r.method, r.strengthUsed !== undefined ? r.strengthUsed : s.strength);
+    resultBlock = `
+      <div class="fc-result">
+        <div><div class="k">${esc(t("estOriginal"))}</div><div class="v">${fmtBytes(f.size)}</div></div>
+        <div><div class="k">${esc(t("compressedLabel"))}</div><div class="v good">${fmtBytes(r.size)}</div></div>
+        <div><div class="k">${esc(t("savedLabel"))}</div><div class="v good">${fmtBytes(Math.max(0, f.size - r.size))}</div></div>
+        <div><div class="k">${esc(t("thReduction"))}</div><div class="v ${reduction > 5 ? "good" : ""}">${reduction.toFixed(1)}%</div></div>
+        <div><div class="k">${esc(t("timeLabel"))}</div><div class="v">${(r.timeMs / 1000).toFixed(1)}s</div></div>
+        <div><div class="k">${esc(t("qualityLabel"))}</div><div class="v">${esc(qWord)}</div></div>
+      </div>
+      ${r.usedOriginal ? `<div class="fc-warn">⚠ <span>${esc(t("outputLarger"))}</span></div>` : ""}
+      ${r.alreadyOptimized ? `<div class="fc-warn">⚠ <span>${esc(t("alreadyOptimized"))}</span></div>` : ""}
+      <div class="fc-actions">
+        <button class="btn btn-primary btn-sm" data-action="download" data-id="${f.id}" type="button">${esc(t("download"))}</button>
+        <button class="btn btn-sm" data-action="recompress" data-id="${f.id}" type="button">${esc(t("recompress"))}</button>
+        <button class="btn btn-sm" data-action="copy" data-id="${f.id}" type="button">${esc(t("copied").split(" ")[0] && "⧉")}</button>
+        <button class="btn btn-danger btn-sm" data-action="remove" data-id="${f.id}" type="button">${esc(t("remove"))}</button>
+      </div>`;
+  } else if (f.status === "error" || f.status === "cancelled") {
+    const msg = f.errorKey ? t(f.errorKey) : t("errorGeneric");
+    resultBlock = `
+      <div class="fc-err">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <span aria-hidden="true">⚠</span>
+          <div style="flex:1">
+            <strong style="display:block;margin-bottom:2px">${esc(msg)}</strong>
+            <details>
+              <summary>${esc(t("details"))}</summary>
+              <pre>${esc(f.errorDetail || "")}</pre>
+            </details>
+          </div>
+        </div>
+        <div class="fc-actions" style="margin-top:9px">
+          <button class="btn btn-sm" data-action="retry" data-id="${f.id}" type="button">${esc(t("tryAgain"))}</button>
+          <button class="btn btn-danger btn-sm" data-action="remove" data-id="${f.id}" type="button">${esc(t("remove"))}</button>
+        </div>
+      </div>`;
+  }
+
+  let actionsBlock = "";
+  if (f.status !== "done" && f.status !== "error" && f.status !== "cancelled") {
+    actionsBlock = `
+      <div class="fc-actions">
+        <button class="btn btn-sm" data-action="toggle-custom" data-id="${f.id}" type="button">
+          ${f.useCustom ? "✓ " : ""}${esc(t("perFileSettings"))}
+        </button>
+        <button class="btn btn-danger btn-sm" data-action="remove" data-id="${f.id}" type="button" ${state.busy ? "disabled" : ""}>${esc(t("remove"))}</button>
+      </div>`;
+  }
+
+  let customBlock = "";
+  if (f.useCustom) {
+    customBlock = `
+      <div class="fc-custom">
+        <label class="field">
+          <span>${esc(t("method"))}</span>
+          <select data-custom="method" data-id="${f.id}">
+            <option value="smart"${f.custom.method === "smart" ? " selected" : ""}>${esc(t("methodSmart"))}</option>
+            <option value="lossless"${f.custom.method === "lossless" ? " selected" : ""}>${esc(t("methodLossless"))}</option>
+            <option value="images"${f.custom.method === "images" ? " selected" : ""}>${esc(t("methodImages"))}</option>
+            <option value="raster"${f.custom.method === "raster" ? " selected" : ""}>${esc(t("methodRaster"))}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>${esc(t("strengthShort"))}: <b id="csb-${f.id}">${esc(strengthLabel(f.custom.strength))}</b></span>
+          <input type="range" min="0" max="100" step="1" value="${f.custom.strength}" data-custom="strength" data-id="${f.id}">
+        </label>
+      </div>`;
+  }
+
+  return `
+  <article class="file-card ${f.status === "done" ? "is-done" : ""} ${f.status === "error" ? "is-error" : ""}" data-file="${f.id}">
+    <div class="fc-top">
+      <div class="fc-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      </div>
+      <div class="fc-main">
+        <div class="fc-name" title="${esc(f.name)}">${esc(f.name)}</div>
+        <div class="fc-meta">${meta}</div>
+      </div>
+      ${actionsBlock}
+    </div>
+    ${customBlock}
+    ${statusLine}
+    ${resultBlock}
+  </article>`;
+}
+
+function renderTotals() {
+  const box = $("#totalsBox");
+  let original = 0, estimated = 0, compressed = 0, doneCount = 0;
+  state.files.forEach(f => {
+    original += f.size;
+    if (f.analysis) {
+      const est = estimateOutput(f.analysis, effectiveSettings(f));
+      if (est) estimated += (est.lo + est.hi) / 2;
+    }
+    if (f.result) { compressed += f.result.size; doneCount++; }
+  });
+  const parts = [];
+  parts.push(`<div class="stat"><span class="k">${esc(t("filesCount"))}</span><span class="v">${state.files.length}</span></div>`);
+  parts.push(`<div class="stat"><span class="k">${esc(t("totalOriginal"))}</span><span class="v">${fmtBytes(original)}</span></div>`);
+  if (estimated > 0) {
+    parts.push(`<div class="stat"><span class="k">${esc(t("totalEstimated"))}</span><span class="v">${fmtBytes(estimated)}</span></div>`);
+  }
+  if (doneCount > 0) {
+    parts.push(`<div class="stat"><span class="k">${esc(t("totalSaved"))}</span><span class="v" style="color:var(--success)">${fmtBytes(Math.max(0, original - compressed))}</span></div>`);
+  }
+  box.innerHTML = `<div class="totals">${parts.join("")}</div>`;
+}
+
+function updateDownloadAll() {
+  const btn = $("#downloadAllBtn");
+  const has = state.files.some(f => f.status === "done" && f.result);
+  btn.hidden = !has;
+}
+
+function renderEstimate() {
+  const box = $("#estimateBox");
+  if (!box) return;
+  const withAnalysis = state.files.filter(f => f.analysis);
+  const compareWrap = $("#compareWrap");
+
+  if (!withAnalysis.length) {
+    box.innerHTML = `<div class="est-item"><span class="k">${esc(t("estEstimated"))}</span>
+      <span class="v" style="font-size:14px;font-weight:500;color:var(--muted)">${esc(t("selectFileFirst"))}</span></div>`;
+    compareWrap.hidden = true;
+    return;
+  }
+
+  let origTotal = 0, loTotal = 0, hiTotal = 0;
+  const methodCounts = {};
+  withAnalysis.forEach(f => {
+    const s = effectiveSettings(f);
+    const e = estimateOutput(f.analysis, s);
+    origTotal += f.size;
+    if (e) {
+      loTotal += e.lo; hiTotal += e.hi;
+      methodCounts[e.method] = (methodCounts[e.method] || 0) + 1;
+    }
+  });
+
+  const methodLabel = Object.keys(methodCounts)
+    .map(m => {
+      const name = m === "lossless" ? t("methodLossless") : m === "images" ? t("methodImages") : t("methodRaster");
+      return name + (methodCounts[m] > 1 ? " ×" + methodCounts[m] : "");
+    }).join(", ");
+
+  const reductionLo = origTotal ? ((origTotal - hiTotal) / origTotal) * 100 : 0;
+  const reductionHi = origTotal ? ((origTotal - loTotal) / origTotal) * 100 : 0;
+
+  let targetBlock = "";
+  if (settings.targetEnabled) {
+    const targetBytes = targetBytesValue();
+    if (targetBytes > 0) {
+      let status = t("targetEasy");
+      const mid = (loTotal + hiTotal) / 2;
+      if (hiTotal > targetBytes) {
+        if (loTotal <= targetBytes) status = t("targetClose");
+        else status = t("targetHard");
+      }
+      targetBlock = `
+        <div class="est-item"><span class="k">${esc(t("estTarget"))}</span><span class="v">${fmtBytes(targetBytes)}</span></div>
+        <div class="est-item" style="grid-column:span 2"><span class="k">${esc(t("estTargetStatus"))}</span>
+          <span class="v" style="font-size:13px;font-weight:600;color:var(--warn)">${esc(status)}</span></div>`;
+    }
+  }
+
+  box.innerHTML = `
+    <div class="estimate-grid">
+      <div class="est-item"><span class="k">${esc(t("estOriginal"))}</span><span class="v">${fmtBytes(origTotal)}</span></div>
+      <div class="est-item"><span class="k">${esc(t("estEstimated"))}</span>
+        <span class="v good">${fmtBytes(loTotal)} – ${fmtBytes(hiTotal)}</span></div>
+      <div class="est-item"><span class="k">${esc(t("estReduction"))}</span>
+        <span class="v">${reductionLo.toFixed(0)}% – ${reductionHi.toFixed(0)}%</span></div>
+      <div class="est-item"><span class="k">${esc(t("estMethod"))}</span>
+        <span class="v" style="font-size:13px;font-weight:600">${esc(methodLabel)}</span></div>
+      ${targetBlock}
+    </div>
+    <div class="est-note"><span aria-hidden="true">ℹ</span><span>${esc(t("estNote"))}</span></div>
+  `;
+
+  renderComparison();
+}
+
+function targetBytesValue() {
+  const v = Number(settings.targetValue);
+  if (!isFinite(v) || v <= 0) return 0;
+  return settings.targetUnit === "KB" ? v * 1024 : v * 1024 * 1024;
+}
+
+function renderComparison() {
+  const wrap = $("#compareWrap");
+  const body = $("#cmpBody");
+  const first = state.files.filter(f => f.analysis)[0];
+  if (!first) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  $("#compareFor").textContent = t("estimateFor") + ": " + first.name;
+
+  const rows = [
+    { key: "maximumQuality", label: t("pMaximumQuality") },
+    { key: "recommended", label: t("pRecommended") },
+    { key: "smallUpload", label: t("pSmallUpload") },
+    { key: "maxCompression", label: t("pMaxCompression") }
+  ];
+
+  body.innerHTML = rows.map(r => {
+    const p = PROFILES[r.key];
+    const s = JSON.parse(JSON.stringify(settings));
+    s.strength = p.strength;
+    s.method = p.method;
+    const sp = strengthParams(p.strength);
+    s.adv.dpi = sp.dpi;
+    s.adv.quality = sp.quality;
+    const e = estimateOutput(first.analysis, s);
+    const mid = e ? (e.lo + e.hi) / 2 : first.size;
+    const red = first.size ? ((first.size - mid) / first.size) * 100 : 0;
+    const qw = qualityWordFor(e ? e.method : "lossless", p.strength);
+    return `<tr data-profile="${r.key}">
+      <td>${esc(r.label)}</td>
+      <td class="num">${fmtBytes(mid)}</td>
+      <td class="num">${red.toFixed(0)}%</td>
+      <td><span class="${qualityPillClass(qw)}">${esc(qw)}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+/* ============================================================
+   11. File handling
+   ============================================================ */
+function addFiles(fileList) {
+  const arr = Array.prototype.slice.call(fileList || []);
+  if (!arr.length) return;
+  let added = 0, skipped = 0;
+  arr.forEach(f => {
+    const isPdf = (f.type && f.type.indexOf("pdf") !== -1) || /\.pdf$/i.test(f.name);
+    if (!isPdf) { skipped++; return; }
+    if (f.size > 500 * 1024 * 1024) { toast(t("fileTooBig"), "warn"); return; }
+    state.files.push({
+      id: uid(),
+      file: f,
+      name: f.name,
+      size: f.size,
+      status: "queued",
+      progress: 0,
+      message: "",
+      analysis: null,
+      result: null,
+      errorKey: null,
+      errorDetail: null,
+      useCustom: false,
+      custom: { method: "smart", strength: settings.strength }
+    });
+    added++;
+  });
+  if (skipped && !added) toast(t("onlyPdf"), "warn");
+  if (added) toast(added + " " + t("addedFiles"), "ok");
+  renderQueue();
+  renderEstimate();
+  if (added) analyzeAllPending();
+}
+
+async function analyzeAllPending() {
+  if (state.busy) return;
+  const pending = state.files.filter(f => !f.analysis && f.status === "queued");
+  if (!pending.length) return;
+  if (!HAS_PDFLIB()) { toast(t("noEngine"), "err"); return; }
+
+  for (let i = 0; i < pending.length; i++) {
+    const f = pending[i];
+    f.status = "analysing";
+    f.message = t("analysing");
+    renderQueue();
+    try {
+      const bytes = new Uint8Array(await f.file.arrayBuffer());
+      const analysis = await analyzePdf(bytes);
+      f.analysis = analysis;
+      f.status = "ready";
+      f.message = t("ready");
+      if (f.size > 40 * 1024 * 1024) {
+        f.message = t("ready") + " · " + t("largeFileWarn");
+      }
+    } catch (e) {
+      f.status = "error";
+      f.errorKey = classifyError(e);
+      f.errorDetail = (e && e.message) || String(e);
+      f.message = t("failed");
+    }
+    renderQueue();
+    renderEstimate();
+    await yieldUI();
+  }
+  autoRecommend();
+}
+
+function autoRecommend() {
+  if (!settings.autoPerFile) return;
+  const withA = state.files.filter(f => f.analysis);
+  if (!withA.length) return;
+  // Recommend based on the first analysed file (used for the global profile)
+  const a = withA[0].analysis;
+  let rec = "recommended";
+  if (a.type === "text") rec = "office";
+  else if (a.scanned) rec = "scanned";
+  else if (a.imageHeavy) rec = "smallUpload";
+  if (settings.profile === "custom") return;
+  if (settings.profile !== rec && settings._autoApplied !== rec) {
+    settings._autoApplied = rec;
+    const p = PROFILES[rec];
+    if (p && p.strength !== null && settings.method === "smart") {
+      // keep method smart, just nudge the strength
+      settings.profile = rec;
+      settings.strength = p.strength;
+      const sp = strengthParams(p.strength);
+      settings.adv.dpi = sp.dpi;
+      settings.adv.quality = sp.quality;
+      syncSettingsUI();
+      saveSettings();
+      renderEstimate();
+    }
+  }
+}
+
+function classifyError(e) {
+  const msg = ((e && e.message) || String(e)).toLowerCase();
+  if (e && e.name === "CancelError") return "errorCancelled";
+  if (msg.indexOf("encrypt") !== -1 || msg.indexOf("password") !== -1) return "errorEncrypted";
+  if (msg.indexOf("memory") !== -1 || msg.indexOf("allocation") !== -1) return "errorMemory";
+  if (msg.indexOf("no pdf") !== -1 || msg.indexOf("invalid") !== -1 || msg.indexOf("header") !== -1 ||
+      msg.indexOf("parse") !== -1 || msg.indexOf("eof") !== -1) return "errorInvalidPdf";
+  if (msg.indexOf("unsupported") !== -1 || msg.indexOf("not supported") !== -1) return "errorUnsupported";
+  if (msg.indexOf("cancel") !== -1) return "errorCancelled";
+  return "errorGeneric";
+}
+
+/* ============================================================
+   12. Compression pipeline
+   ============================================================ */
+async function compressAll() {
+  if (state.busy) return;
+  const targets = state.files.filter(f => f.status === "ready" || f.status === "error" || f.status === "cancelled" || f.status === "done");
+  if (!targets.length) {
+    const pending = state.files.filter(f => f.status === "queued" || f.status === "analysing");
+    if (!pending.length) { toast(t("selectFileFirst"), "warn"); return; }
+  }
+  if (!HAS_PDFLIB()) { toast(t("noEngine"), "err"); return; }
+
+  state.busy = true;
+  cancelFlag = false;
+  setBusyUI(true);
+
+  const queue = state.files.filter(f => f.status !== "done" || !f.result);
+  const realQueue = state.files.slice();
+
+  let anyDone = false;
+  for (let i = 0; i < realQueue.length; i++) {
+    if (cancelFlag) break;
+    const item = realQueue[i];
+    if (item.status === "done" && item.result) continue;
+
+    try {
+      await compressOne(item);
+      anyDone = true;
+    } catch (e) {
+      if (e && e.name === "CancelError") {
+        item.status = "cancelled";
+        item.errorKey = "errorCancelled";
+        item.errorDetail = t("cancelledMsg");
+        item.message = t("cancelled");
+        break;
+      }
+      item.status = "error";
+      item.errorKey = classifyError(e);
+      item.errorDetail = (e && (e.detail || e.message)) || String(e);
+      item.message = t("failed");
+    }
+    renderQueue();
+    renderEstimate();
+    await yieldUI();
+  }
+
+  state.busy = false;
+  setBusyUI(false);
+  hideProcBar();
+  renderQueue();
+  renderEstimate();
+
+  if (cancelFlag) toast(t("cancelledMsg"), "warn");
+  else if (anyDone) {
+    toast(t("finished"), "ok");
+    srSay(t("finished"));
+  }
+}
+
+async function compressOne(item) {
+  const started = performance.now();
+  item.status = "compressing";
+  item.progress = 0;
+  item.message = t("compressing");
+  item.result = null;
+  item.errorKey = null;
+  renderQueue();
+  showProcBar(item.name);
+
+  // ---- read + analyse if needed ----
+  const originalBytes = new Uint8Array(await item.file.arrayBuffer());
+  item.size = originalBytes.length;
+
+  if (!item.analysis) {
+    try {
+      item.analysis = await analyzePdf(originalBytes);
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  const s = effectiveSettings(item);
+  const params = buildParams(s);
+  const levels = escalationLevels(item.analysis, s);
+  const targetBytes = s.targetEnabled ? targetBytesValue() : 0;
+
+  let best = null;
+  let usedOriginal = false;
+  let lastMethod = null;
+
+  for (let li = 0; li < levels.length; li++) {
+    if (cancelFlag) throw new CancelError();
+    const lvl = levels[li];
+    const p = buildParams(lvl);
+    const method = resolveMethod(item.analysis, lvl);
+
+    setProcSub(item.name + " · " + (li + 1) + "/" + levels.length);
+
+    const onProg = (pct) => {
+      item.progress = pct;
+      updateProgressDOM(item.id, pct);
+      setProcBar((li + pct) / levels.length);
+    };
+
+    let res;
+    if (method === "lossless") {
+      res = await compressLossless(originalBytes.slice(0), p, onProg);
+    } else if (method === "images") {
+      res = await compressImages(originalBytes.slice(0), p, item.analysis, onProg);
+    } else {
+      res = await compressRaster(originalBytes.slice(0), p, item.analysis, onProg);
+    }
+    lastMethod = res.method;
+
+    // ---- validate ----
+    try {
+      await validatePdfOutput(res.bytes, item.analysis ? item.analysis.pageCount : undefined);
+    } catch (e) {
+      if (li === levels.length - 1 && !best) {
+        throw new UserError("errorOutput", (e && e.message) || "validation failed");
+      }
+      continue;
+    }
+
+    if (!best || res.bytes.length < best.bytes.length) {
+      best = res;
+      best.strengthUsed = lvl.strength;
+    }
+
+    if (targetBytes > 0 && best.bytes.length <= targetBytes) break;
+    if (targetBytes <= 0 && li === 0) {
+      // single pass when no target
+      break;
+    }
+    await yieldUI();
+  }
+
+  if (!best) throw new UserError("errorOutput");
+
+  // ---- ensure we never hand back something bigger ----
+  if (best.bytes.length >= originalBytes.length) {
+    usedOriginal = true;
+    best = {
+      bytes: originalBytes,
+      method: lastMethod || "lossless",
+      dpi: best.dpi, quality: best.quality,
+      imagesChanged: best.imagesChanged,
+      strengthUsed: best.strengthUsed
+    };
+  }
+
+  const timeMs = performance.now() - started;
+  const blob = new Blob([best.bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
+  // revoke previous
+  if (item.result && item.result.url) { try { URL.revokeObjectURL(item.result.url); } catch (e) {} }
+
+  const suffix = best.method === "raster" ? "_raster-compressed"
+               : best.method === "images" ? "_compressed"
+               : "_optimized";
+
+  item.result = {
+    bytes: best.bytes,
+    size: best.bytes.length,
+    blob: blob,
+    url: url,
+    method: best.method,
+    dpi: best.dpi,
+    quality: best.quality,
+    imagesChanged: best.imagesChanged,
+    strengthUsed: best.strengthUsed,
+    timeMs: timeMs,
+    fileName: sanitizeName(item.name, suffix),
+    usedOriginal: usedOriginal,
+    alreadyOptimized: (!usedOriginal && best.bytes.length > originalBytes.length * 0.92 && item.analysis && item.analysis.type === "text")
+  };
+  item.status = "done";
+  item.progress = 1;
+  item.message = t("done");
+
+  addHistory(item);
+}
+
+function updateProgressDOM(id, pct) {
+  const bar = document.getElementById("bar-" + id);
+  if (bar) bar.style.width = Math.round(pct * 100) + "%";
+  const pctEl = document.getElementById("pct-" + id);
+  if (pctEl) pctEl.textContent = Math.round(pct * 100) + "%";
+}
+
+/* ============================================================
+   13. History
+   ============================================================ */
+function addHistory(item) {
+  if (!item.result) return;
+  state.history.unshift({
+    name: item.name,
+    original: item.size,
+    compressed: item.result.size,
+    method: item.result.method,
+    time: Date.now()
+  });
+  state.history = state.history.slice(0, 20);
+  renderHistory();
+}
+function renderHistory() {
+  const sec = $("#historySection");
+  const list = $("#historyList");
+  if (!state.history.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  list.innerHTML = state.history.map(h => {
+    const red = h.original ? ((h.original - h.compressed) / h.original) * 100 : 0;
+    return `<div class="file-card" style="padding:10px 12px">
+      <div class="fc-top">
+        <div class="fc-main">
+          <div class="fc-name">${esc(h.name)}</div>
+          <div class="fc-meta">
+            <span>${fmtBytes(h.original)} → ${fmtBytes(h.compressed)}</span>
+            <span>${red.toFixed(1)}%</span>
+            <span>${esc(h.method)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ============================================================
+   14. Download helpers
+   ============================================================ */
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 1500);
+}
+
+/* --- minimal ZIP (stored, no compression) --- */
+const CRC_TABLE = (function () {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function makeZip(entries) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  const now = new Date();
+  const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF;
+  const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+
+  entries.forEach(e => {
+    const nameBytes = enc.encode(e.name);
+    const crc = crc32(e.data);
+    const size = e.data.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true);
+    lv.setUint16(8, 0, true);
+    lv.setUint16(10, dosTime, true);
+    lv.setUint16(12, dosDate, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, size, true);
+    lv.setUint32(22, size, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    chunks.push(local, e.data);
+
+    const cd = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, dosTime, true);
+    cv.setUint16(14, dosDate, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset, true);
+    cd.set(nameBytes, 46);
+    central.push(cd);
+
+    offset += local.length + size;
+  });
+
+  let centralSize = 0;
+  central.forEach(c => centralSize += c.length);
+
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);
+  ev.setUint16(6, 0, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+  ev.setUint16(20, 0, true);
+
+  return new Blob(chunks.concat(central, [eocd]), { type: "application/zip" });
+}
+
+/* ============================================================
+   15. Preview
+   ============================================================ */
+async function openPreview() {
+  const f = state.files.filter(x => x.analysis)[0];
+  if (!f) { toast(t("selectFileFirst"), "warn"); return; }
+  if (!HAS_PDFJS()) { toast(t("noEngine"), "err"); return; }
+
+  const modal = $("#previewModal");
+  modal.hidden = false;
+  $("#previewPage").max = f.analysis.pageCount;
+  $("#previewPage").value = 1;
+  $("#previewNote").textContent = t("loadingPreview");
+  await renderPreviewPage(f, 1);
+}
+
+async function renderPreviewPage(item, pageNum) {
+  configurePdfJs();
+  if (!HAS_PDFJS()) return;
+  const s = effectiveSettings(item);
+  const method = resolveMethod(item.analysis, s);
+  const note = $("#previewNote");
+
+  const canvasL = $("#prevCanvasL");
+  const canvasR = $("#prevCanvasR");
+  canvasL.width = canvasL.height = 0;
+  canvasR.width = canvasR.height = 0;
+
+  try {
+    const bytes = new Uint8Array(await item.file.arrayBuffer());
+    const task = window.pdfjsLib.getDocument({ data: bytes, isEvalSupported: false });
+    const pdf = await task.promise;
+    const n = Math.max(1, Math.min(pdf.numPages, pageNum));
+    const page = await pdf.getPage(n);
+
+    const viewScale = 1.6;
+    const vpL = page.getViewport({ scale: viewScale });
+    canvasL.width = Math.floor(vpL.width);
+    canvasL.height = Math.floor(vpL.height);
+    const cl = canvasL.getContext("2d", { alpha: false });
+    cl.fillStyle = "#fff"; cl.fillRect(0, 0, canvasL.width, canvasL.height);
+    await page.render({ canvasContext: cl, viewport: vpL }).promise;
+
+    // Right side: simulate target resolution + JPEG quality
+    const targetScale = method === "raster" ? (s.adv.dpi / 72) : (s.adv.dpi / 72);
+    const vpR = page.getViewport({ scale: clamp(targetScale, 0.3, 3) });
+    const tmp = document.createElement("canvas");
+    tmp.width = Math.max(1, Math.floor(vpR.width));
+    tmp.height = Math.max(1, Math.floor(vpR.height));
+    const ct = tmp.getContext("2d", { alpha: false });
+    ct.fillStyle = "#fff"; ct.fillRect(0, 0, tmp.width, tmp.height);
+    await page.render({ canvasContext: ct, viewport: vpR }).promise;
+
+    const blob = await canvasToBlob(tmp, "image/jpeg", s.adv.quality);
+    const bmp = await decodeImageBlob(blob);
+    const d = imgDims(bmp);
+
+    canvasR.width = canvasL.width;
+    canvasR.height = canvasL.height;
+    const cr = canvasR.getContext("2d", { alpha: false });
+    cr.fillStyle = "#fff"; cr.fillRect(0, 0, canvasR.width, canvasR.height);
+    cr.imageSmoothingQuality = "high";
+    cr.drawImage(bmp, 0, 0, d.w, d.h, 0, 0, canvasR.width, canvasR.height);
+    if (typeof bmp.close === "function") bmp.close();
+
+    tmp.width = tmp.height = 0;
+    try { await pdf.destroy(); } catch (e) {}
+
+    $("#prevCapL").textContent = fmtBytes(item.size);
+    $("#prevCapR").textContent = `${s.adv.dpi} DPI · q=${s.adv.quality}`;
+    note.textContent = method === "lossless"
+      ? t("methodLossless") + " — " + t("previewDisclaimer")
+      : t("previewDisclaimer");
+  } catch (e) {
+    note.textContent = t("previewUnavailable");
+  }
+}
+
+/* ============================================================
+   16. UI wiring
+   ============================================================ */
+function setBusyUI(busy) {
+  $("#compressBtn").disabled = busy;
+  $("#clearBtn").disabled = busy;
+  $("#previewBtn").disabled = busy;
+  $$("#queueList [data-action='remove']").forEach(b => { b.disabled = busy; });
+}
+
+function showProcBar(name) {
+  $("#procBar").hidden = false;
+  $("#procTitle").textContent = t("compressingAll");
+  $("#procSub").textContent = name || "";
+  $("#procBarFill").style.width = "0%";
+}
+function hideProcBar() {
+  $("#procBar").hidden = true;
+  $("#procBarFill").style.width = "0%";
+}
+function setProcBar(p) {
+  $("#procBarFill").style.width = Math.round(clamp(p, 0, 1) * 100) + "%";
+}
+function setProcSub(txt) { $("#procSub").textContent = txt; }
+function updateProcText() {
+  if (!$("#procBar").hidden) {
+    $("#procTitle").textContent = t("compressingAll");
+    $("#cancelBtn").textContent = t("cancel");
+  }
+}
+
+function syncSettingsUI() {
+  $("#profileSel").value = settings.profile;
+  $("#methodSel").value = settings.method;
+  $("#strengthRange").value = settings.strength;
+  $("#targetChk").checked = settings.targetEnabled;
+  $("#targetVal").value = settings.targetValue;
+  $("#targetUnit").value = settings.targetUnit;
+  $("#autoProfileChk").checked = settings.autoPerFile;
+  $("#advDpi").value = settings.adv.dpi;
+  $("#advQuality").value = settings.adv.quality;
+  $("#advMinKb").value = settings.adv.minImageKB;
+  $("#advGrayscale").checked = settings.adv.grayscale;
+  $("#advRecompress").checked = settings.adv.recompress;
+  $("#advPreserveHq").checked = settings.adv.preserveHq;
+  $("#advObjStreams").checked = settings.adv.objStreams;
+  $("#advRemoveMeta").checked = settings.adv.removeMeta;
+  $("#advCompat").value = settings.adv.compat;
+  $("#advPreserveText").checked = settings.adv.preserveText;
+  $("#advPreserveLinks").checked = settings.adv.preserveLinks;
+  $("#advPreserveBookmarks").checked = settings.adv.preserveBookmarks;
+  $("#advPreserveAnnots").checked = settings.adv.preserveAnnots;
+  $("#advPreserveForms").checked = settings.adv.preserveForms;
+  $("#advAllowRaster").checked = settings.adv.allowRaster;
+  buildStrengthBadge();
+}
+
+function wireUI() {
+  // language
+  $("#langBtn").addEventListener("click", () => {
+    LANG = LANG === "en" ? "ar" : "en";
+    try { localStorage.setItem(LANG_KEY, LANG); } catch (er) {}
+    applyI18n();
+  });
+
+  // theme
+  applyTheme();
+  $("#themeBtn").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : "dark";
+    setTheme(next);
+  });
+
+  // dropzone
+  const dz = $("#dropzone");
+  const fi = $("#fileInput");
+  $("#browseBtn").addEventListener("click", e => { e.stopPropagation(); fi.click(); });
+  dz.addEventListener("click", e => {
+    if (e.target.closest("button")) return;
+    fi.click();
+  });
+  fi.addEventListener("change", e => {
+    addFiles(e.target.files);
+    fi.value = "";
+  });
+  ["dragenter", "dragover"].forEach(ev => {
+    dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.add("drag"); });
+  });
+  ["dragleave", "drop"].forEach(ev => {
+    dz.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      if (ev === "dragleave" && dz.contains(e.relatedTarget)) return;
+      dz.classList.remove("drag");
+    });
+  });
+  dz.addEventListener("drop", e => {
+    const dt = e.dataTransfer;
+    if (dt && dt.files) addFiles(dt.files);
+  });
+  // prevent the browser from opening dropped files anywhere else
+  window.addEventListener("dragover", e => e.preventDefault());
+  window.addEventListener("drop", e => e.preventDefault());
+
+  // settings
+  $("#profileSel").addEventListener("change", e => {
+    applyProfile(e.target.value, false);
+    syncSettingsUI();
+    renderEstimate();
+    renderQueue();
+  });
+  $("#methodSel").addEventListener("change", e => {
+    settings.method = e.target.value;
+    settings.profile = "custom";
+    if (e.target.value === "raster") {
+      settings.adv.allowRaster = true;
+      $("#advAllowRaster").checked = true;
+      toast(t("rasterWarn"), "warn", 6000);
+    }
+    saveSettings();
+    syncSettingsUI();
+    renderEstimate();
+    renderQueue();
+  });
+  $("#strengthRange").addEventListener("input", e => {
+    settings.strength = Number(e.target.value);
+    settings.profile = "custom";
+    const sp = strengthParams(settings.strength);
+    settings.adv.dpi = sp.dpi;
+    settings.adv.quality = sp.quality;
+    buildStrengthBadge();
+    syncSettingsUI();
+    saveSettings();
+    renderEstimate();
+    renderQueue();
+  });
+
+  $("#targetChk").addEventListener("change", e => {
+    settings.targetEnabled = e.target.checked;
+    saveSettings(); renderEstimate(); renderQueue();
+  });
+  $("#targetVal").addEventListener("input", e => {
+    settings.targetValue = Number(e.target.value) || 0;
+    saveSettings(); renderEstimate();
+  });
+  $("#targetUnit").addEventListener("change", e => {
+    settings.targetUnit = e.target.value;
+    saveSettings(); renderEstimate();
+  });
+  $("#autoProfileChk").addEventListener("change", e => {
+    settings.autoPerFile = e.target.checked;
+    saveSettings();
+    if (settings.autoPerFile) autoRecommend();
+  });
+
+  // advanced bindings
+  const advBind = (id, key, type) => {
+    const el = $("#" + id);
+    if (!el) return;
+    el.addEventListener("change", () => {
+      if (type === "bool") settings.adv[key] = el.checked;
+      else if (type === "num") settings.adv[key] = Number(el.value);
+      else settings.adv[key] = el.value;
+      if (id === "advDpi" || id === "advQuality") settings.profile = "custom";
+      saveSettings();
+      syncSettingsUI();
+      renderEstimate();
+      renderQueue();
+    });
+  };
+  advBind("advDpi", "dpi", "num");
+  advBind("advQuality", "quality", "num");
+  advBind("advMinKb", "minImageKB", "num");
+  advBind("advGrayscale", "grayscale", "bool");
+  advBind("advRecompress", "recompress", "bool");
+  advBind("advPreserveHq", "preserveHq", "bool");
+  advBind("advObjStreams", "objStreams", "bool");
+  advBind("advRemoveMeta", "removeMeta", "bool");
+  advBind("advCompat", "compat", "str");
+  advBind("advPreserveText", "preserveText", "bool");
+  advBind("advPreserveLinks", "preserveLinks", "bool");
+  advBind("advPreserveBookmarks", "preserveBookmarks", "bool");
+  advBind("advPreserveAnnots", "preserveAnnots", "bool");
+  advBind("advPreserveForms", "preserveForms", "bool");
+  advBind("advAllowRaster", "allowRaster", "bool");
+
+  // actions
+  $("#compressBtn").addEventListener("click", compressAll);
+  $("#previewBtn").addEventListener("click", openPreview);
+  $("#clearBtn").addEventListener("click", () => {
+    if (state.busy) return;
+    if (state.files.length && !confirm(t("clearConfirm"))) return;
+    state.files.forEach(f => { if (f.result && f.result.url) { try { URL.revokeObjectURL(f.result.url); } catch (e) {} } });
+    state.files = [];
+    renderQueue(); renderEstimate();
+    toast(t("queueCleared"), "ok");
+  });
+  $("#cancelBtn").addEventListener("click", () => {
+    cancelFlag = true;
+    $("#cancelBtn").disabled = true;
+    setTimeout(() => { $("#cancelBtn").disabled = false; }, 1500);
+  });
+  $("#addMoreBtn").addEventListener("click", () => $("#fileInput").click());
+  $("#downloadAllBtn").addEventListener("click", downloadAll);
+  $("#clearHistoryBtn").addEventListener("click", () => {
+    state.history = [];
+    renderHistory();
+  });
+
+  // queue delegation
+  $("#queueList").addEventListener("click", onQueueClick);
+  $("#queueList").addEventListener("input", onQueueInput);
+  $("#queueList").addEventListener("change", onQueueInput);
+
+  // comparison table
+  $("#cmpBody").addEventListener("click", e => {
+    const tr = e.target.closest("tr[data-profile]");
+    if (!tr) return;
+    const key = tr.getAttribute("data-profile");
+    applyProfile(key, false);
+    syncSettingsUI();
+    renderEstimate();
+    renderQueue();
+  });
+
+  // modals
+  $("#helpBtn").addEventListener("click", () => { $("#helpModal").hidden = false; });
+  $$("[data-close-modal]").forEach(b => {
+    b.addEventListener("click", () => {
+      b.closest(".modal").hidden = true;
+    });
+  });
+  $$(".modal").forEach(m => {
+    m.addEventListener("click", e => {
+      if (e.target === m) m.hidden = true;
+    });
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      $$(".modal").forEach(m => { m.hidden = true; });
+    }
+  });
+
+  $("#previewRenderBtn").addEventListener("click", () => {
+    const f = state.files.filter(x => x.analysis)[0];
+    if (!f) return;
+    renderPreviewPage(f, Number($("#previewPage").value) || 1);
+  });
+
+  // keyboard shortcut
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !state.busy && state.files.length) {
+      e.preventDefault();
+      compressAll();
+    }
+  });
+
+  // info dots
+  document.addEventListener("click", e => {
+    const dot = e.target.closest(".info-dot");
+    if (!dot) return;
+    const key = dot.getAttribute("data-tip");
+    toast(t(key || "methodTip"), "", 5200);
+  });
+}
+
+function onQueueClick(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-id");
+  const item = state.files.find(f => f.id === id);
+  if (!item) return;
+  const action = btn.getAttribute("data-action");
+
+  if (action === "remove") {
+    if (state.busy) return;
+    if (item.result && item.result.url) { try { URL.revokeObjectURL(item.result.url); } catch (er) {} }
+    state.files = state.files.filter(f => f.id !== id);
+    renderQueue(); renderEstimate();
+    toast(t("removedFile"), "ok", 2000);
+  } else if (action === "download") {
+    if (item.result) downloadBlob(item.result.blob, item.result.fileName);
+  } else if (action === "toggle-custom") {
+    item.useCustom = !item.useCustom;
+    renderQueue(); renderEstimate();
+  } else if (action === "retry") {
+    item.status = "ready";
+    item.errorKey = null;
+    item.errorDetail = null;
+    item.message = t("ready");
+    renderQueue(); renderEstimate();
+  } else if (action === "recompress") {
+    if (state.busy) return;
+    item.status = "ready";
+    item.result = null;
+    renderQueue(); renderEstimate();
+    compressAll();
+  } else if (action === "copy") {
+    if (!item.result) return;
+    const r = item.result;
+    const red = item.size ? ((item.size - r.size) / item.size) * 100 : 0;
+    const text = [
+      item.name,
+      t("estOriginal") + ": " + fmtBytes(item.size),
+      t("compressedLabel") + ": " + fmtBytes(r.size),
+      t("savedLabel") + ": " + fmtBytes(item.size - r.size),
+      t("thReduction") + ": " + red.toFixed(1) + "%",
+      t("methodLabel") + ": " + r.method,
+      "DPI: " + r.dpi + " · q=" + r.quality,
+      t("timeLabel") + ": " + (r.timeMs / 1000).toFixed(1) + "s"
+    ].join("\n");
+    try {
+      navigator.clipboard.writeText(text).then(
+        () => toast(t("copied"), "ok"),
+        () => toast(t("copied"), "ok")
+      );
+    } catch (er) { toast(t("copied"), "ok"); }
+  }
+}
+
+function onQueueInput(e) {
+  const el = e.target;
+  const kind = el.getAttribute("data-custom");
+  if (!kind) return;
+  const id = el.getAttribute("data-id");
+  const item = state.files.find(f => f.id === id);
+  if (!item) return;
+  if (kind === "method") item.custom.method = el.value;
+  if (kind === "strength") {
+    item.custom.strength = Number(el.value);
+    const b = document.getElementById("csb-" + id);
+    if (b) b.textContent = strengthLabel(item.custom.strength);
+  }
+  renderEstimate();
+}
+
+function downloadAll() {
+  const done = state.files.filter(f => f.status === "done" && f.result);
+  if (!done.length) { toast(t("nothingToDownload"), "warn"); return; }
+  const entries = done.map(f => ({
+    name: f.result.fileName,
+    data: f.result.bytes
+  }));
+  try {
+    const zip = makeZip(entries);
+    downloadBlob(zip, "compressed-pdfs.zip");
+  } catch (e) {
+    // fallback: sequential downloads
+    done.forEach((f, i) => {
+      setTimeout(() => downloadBlob(f.result.blob, f.result.fileName), i * 400);
+    });
+  }
+}
+
+/* ============================================================
+   17. Theme
+   ============================================================ */
+function applyTheme() {
+  let pref = "system";
+  try { pref = localStorage.getItem(THEME_KEY) || "system"; } catch (e) {}
+  applyThemeValue(pref);
+}
+function setTheme(v) {
+  try { localStorage.setItem(THEME_KEY, v); } catch (e) {}
+  applyThemeValue(v);
+}
+function applyThemeValue(v) {
+  let effective = v;
+  if (v === "system") {
+    effective = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", effective);
+  const icon = $("#themeIcon");
+  if (icon) {
+    icon.innerHTML = effective === "dark"
+      ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+      : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  }
+}
+if (window.matchMedia) {
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      let pref = "system";
+      try { pref = localStorage.getItem(THEME_KEY) || "system"; } catch (e) {}
+      if (pref === "system") applyThemeValue("system");
+    });
+  } catch (e) {}
+}
+
+/* ============================================================
+   18. Help content
+   ============================================================ */
+function renderHelp() {
+  const box = $("#helpBody");
+  if (!box) return;
+  if (LANG === "ar") {
+    box.innerHTML = `
+      <h3>البدء السريع</h3>
+      <p>اسحب ملف PDF وأفلته في المنطقة المخصّصة، أو اضغط <b>إضافة ملفات</b> لاختيار ملف واحد أو عدة ملفات من جهازك. سيتم تحليل كل ملف تلقائيًا وعرض الحجم المتوقع للنتيجة.</p>
+
+      <h3>اختيار مستوى الضغط</h3>
+      <ul>
+        <li><b>خفيف</b> — تقليل طفيف في الجودة مع أولوية الحفاظ على المستند كما هو.</li>
+        <li><b>متوازن</b> — تخفيض جيد في الحجم مع جودة بصرية ممتازة (الخيار الموصى به).</li>
+        <li><b>قوي</b> — تخفيض كبير يناسب حدود الرفع في المواقع والأنظمة.</li>
+        <li><b>الأقصى</b> — يعطي الأولوية لأصغر حجم ممكن، مع احتمال انخفاض ملحوظ في الجودة.</li>
+        <li><b>مخصّص</b> — اضبط الدقة والجودة يدويًا من الخيارات المتقدمة.</li>
+      </ul>
+
+      <h3>اختيار الطريقة</h3>
+      <ul>
+        <li><b>ذكي (موصى به)</b> — يحلّل الملف ويختار الطريقة الأنسب تلقائيًا.</li>
+        <li><b>تحسين بدون فقدان</b> — يعيد بناء بنية الملف ويحسّن تدفقات الكائنات دون تغيير المحتوى المرئي. آمن جدًا لكن نسبة التخفيض عادة محدودة.</li>
+        <li><b>تحسين الصور</b> — يكتشف الصور المضمّنة ويعيد ضغطها وتصغيرها. يعطي نتائج ممتازة مع الملفات الغنية بالصور والممسوحة ضوئيًا.</li>
+        <li><b>التحويل إلى صور</b> — يرسم كل صفحة كصورة JPEG ويعيد بناء الملف. يعطي أصغر حجم، لكنه <b>يزيل النص القابل للتحديد</b> وقد يُفقد النماذج والروابط والإشارات المرجعية.</li>
+      </ul>
+
+      <h3>الحجم المستهدف</h3>
+      <p>فعّل خيار <b>الحجم المستهدف للملف</b> وأدخل الحد الأقصى المطلوب (مثلًا 2 ميغابايت). سيقوم التطبيق بزيادة شدة الضغط تدريجيًا على عدة محاولات حتى يقترب من الهدف. لا يمكن ضمان الوصول إلى الحجم بدقة، وسيظهر لك تقييم واقعية الهدف.</p>
+
+      <h3>الحجم المتوقع</h3>
+      <p>التقديرات تقريبية وتُحسب من تحليل المحتوى الفعلي للملف: عدد الصور، أحجامها، دقتها، وهل يوجد نص. لا يمكن ضمان نسبة تخفيض معيّنة؛ الملفات النصية تنضغط عادة بنسبة أقل بكثير من الملفات الممسوحة ضوئيًا.</p>
+
+      <h3>الخيارات المتقدمة</h3>
+      <ul>
+        <li><b>أقصى دقة (DPI)</b> — الحد الأقصى لدقة الصور بعد التصغير. 150 مناسبة للشاشة، و200–300 للطباعة.</li>
+        <li><b>جودة JPEG</b> — قيمة بين 0.30 و0.95. القيم المنخفضة تعطي حجمًا أصغر وجودة أقل.</li>
+        <li><b>تدرّج رمادي</b> — يحوّل الصور إلى رمادي، مفيد للمستندات المكتبية والمسح الضوئي النصي.</li>
+        <li><b>الإبقاء على الصور عالية الكفاءة</b> — يتخطى الصور المضغوطة أصلًا جيدًا حتى لا تتدهور دون داعٍ.</li>
+        <li><b>تحسين تدفقات الكائنات</b> — ينتج ملفًا أصغر وأحدث بنية، ويعمل مع جميع القارئات الحديثة.</li>
+        <li><b>إزالة البيانات الوصفية</b> — يحذف العنوان والمؤلف والمنتج. لا يؤثر على المحتوى المرئي.</li>
+      </ul>
+
+      <h3>الجودة مقابل الحجم</h3>
+      <p>كل تخفيض في الحجم يقابله تخفيض في الجودة. استخدم زر <b>معاينة الجودة</b> لمقارنة صفحة من المستند قبل وبعد الضغط التقريبي، خصوصًا عند اختيار مستويات ضغط قوية.</p>
+
+      <h3>الحفاظ على النص</h3>
+      <p>طريقة التحويل إلى صور ترسم الصفحات كصور، فيفقد النص قابليته للتحديد والبحث. إذا كنت تحتاج إلى نص قابل للتحديد أو نماذج تفاعلية، استخدم <b>تحسين الصور</b> أو <b>تحسين بدون فقدان</b> بدلًا من ذلك.</p>
+
+      <h3>الخصوصية</h3>
+      <p>تتم كل عمليات المعالجة داخل متصفحك باستخدام JavaScript وWebAssembly. لا يتم رفع ملفاتك إلى أي خادم، ولا يتم تخزينها بشكل دائم. إغلاق الصفحة يمحو كل شيء.</p>
+
+      <h3>معالجة عدة ملفات</h3>
+      <p>يمكنك إضافة عدة ملفات دفعة واحدة. تُعالَج الملفات بالتتابع لتقليل استهلاك الذاكرة. يمكنك تفعيل <b>إعدادات مستقلة</b> لكل ملف لضبط طريقة ودرجة ضغط مختلفة، أو تنزيل جميع النتائج في ملف ZIP واحد.</p>
+
+      <h3>حل المشكلات</h3>
+      <ul>
+        <li><b>ملف محمي بكلمة مرور</b> — أزل الحماية أولًا ثم أعد المحاولة.</li>
+        <li><b>الملف تالف</b> — جرّب فتحه في قارئ PDF آخر للتأكد.</li>
+        <li><b>ذاكرة غير كافية</b> — أغلق التبويبات الأخرى أو جرّب ملفًا أصغر أو استخدم طريقة التحسين بدون فقدان.</li>
+        <li><b>الملف لم يصغر</b> — بعض الملفات تكون مضغوطة أصلًا؛ سيعرض التطبيق الملف الأصلي بدل نتيجة أكبر.</li>
+      </ul>
+    `;
+  } else {
+    box.innerHTML = `
+      <h3>Getting started</h3>
+      <p>Drag a PDF onto the drop zone, or press <b>Add files</b> to choose one or several PDFs from your device. Each file is analysed automatically and an estimated output size is shown before you compress.</p>
+
+      <h3>Choosing compression strength</h3>
+      <ul>
+        <li><b>Light</b> — minimal quality reduction, prioritises document preservation.</li>
+        <li><b>Balanced</b> — good reduction with excellent visual quality (recommended).</li>
+        <li><b>Strong</b> — significant size reduction, suitable for upload limits.</li>
+        <li><b>Maximum</b> — prioritises the smallest practical file size, with visible quality loss possible.</li>
+        <li><b>Custom</b> — configure resolution and quality manually in Advanced options.</li>
+      </ul>
+
+      <h3>Choosing a method</h3>
+      <ul>
+        <li><b>Smart (recommended)</b> — inspects the document and picks the most suitable strategy automatically.</li>
+        <li><b>Lossless optimisation</b> — rebuilds the PDF structure and optimises object streams without changing visible content. Very safe, but reduction is usually modest.</li>
+        <li><b>Image optimisation</b> — finds embedded images, downsamples oversized ones and recompresses them. Excellent for image-heavy and scanned PDFs.</li>
+        <li><b>Rasterization</b> — renders each page to a JPEG and rebuilds the document. Produces the smallest files but <b>removes selectable text</b> and may drop forms, links and bookmarks.</li>
+      </ul>
+
+      <h3>Target file size</h3>
+      <p>Enable <b>Target file size</b> and enter a maximum (for example 2 MB). The compressor escalates compression over several passes until it gets as close as practical. An exact target is never guaranteed — the app tells you how realistic the target is.</p>
+
+      <h3>Estimated output</h3>
+      <p>Estimates are approximate and derived from the actual document contents: how many images it has, their resolution, their existing compression and whether a text layer is present. A PDF that is mostly text may compress very little, while a scanned document may compress dramatically.</p>
+
+      <h3>Advanced options</h3>
+      <ul>
+        <li><b>Maximum DPI</b> — the ceiling for image resolution after downsampling. 150 is fine for screen, 200–300 for printing.</li>
+        <li><b>JPEG quality</b> — between 0.30 and 0.95. Lower values mean smaller files and lower quality.</li>
+        <li><b>Grayscale</b> — converts images to greyscale; useful for text-heavy office and scan documents.</li>
+        <li><b>Preserve already-efficient images</b> — skips images that are already well compressed so they are not degraded needlessly.</li>
+        <li><b>Optimize object streams</b> — produces a smaller, modern PDF structure. Supported by all current readers.</li>
+        <li><b>Remove document metadata</b> — strips title, author and producer. Does not affect visible content.</li>
+      </ul>
+
+      <h3>Quality vs size</h3>
+      <p>Every reduction in size trades off some quality. Use <b>Preview quality</b> to compare a page before and after simulated compression, especially at aggressive settings.</p>
+
+      <h3>Text preservation</h3>
+      <p>Rasterization draws pages as images, so text is no longer selectable or searchable. If you need selectable text or interactive forms, use <b>Image optimisation</b> or <b>Lossless optimisation</b> instead.</p>
+
+      <h3>Privacy</h3>
+      <p>All processing happens inside your browser. Your files are never uploaded to a server and are not stored permanently. Closing the page erases everything.</p>
+
+      <h3>Batch processing</h3>
+      <p>Add multiple files at once. They are processed sequentially to keep memory usage low. You can enable <b>Individual settings</b> on any file to use a different method or strength, or download all results as a single ZIP.</p>
+
+      <h3>Troubleshooting</h3>
+      <ul>
+        <li><b>Password protected</b> — remove the protection first, then try again.</li>
+        <li><b>Corrupted file</b> — try opening it in another PDF reader to confirm.</li>
+        <li><b>Not enough memory</b> — close other tabs, try a smaller file, or use lossless optimisation.</li>
+        <li><b>The file didn't get smaller</b> — some PDFs are already well optimised. The app will offer the original file rather than a larger one.</li>
+      </ul>
+    `;
+  }
+}
+
+/* ============================================================
+   19. Boot
+   ============================================================ */
+function checkLibraries() {
+  const problems = [];
+  if (!HAS_PDFLIB()) problems.push("pdf-lib");
+  if (!HAS_PDFJS()) problems.push("pdf.js");
+  if (problems.length) {
+    $("#libWarn").hidden = false;
+    $("#libWarnText").textContent = t("libMissing") + " (" + problems.join(", ") + ")";
+  }
+}
+
+function boot() {
+  loadSettings();
+  applyTheme();
+  buildProfileSelect();
+  syncSettingsUI();
+  wireUI();
+  applyI18n();
+  renderEstimate();
+  renderHelp();
+  checkLibraries();
+
+  if (!HAS_PDFLIB()) {
+    $("#compressBtn").disabled = true;
+  }
+
+  // Memory hint for very large files
+  if (navigator.deviceMemory && navigator.deviceMemory <= 2) {
+    // low-memory device: default to a safer profile
+    if (settings.profile === "recommended") {
+      settings.adv.dpi = Math.min(settings.adv.dpi, 130);
+      syncSettingsUI();
+    }
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+
+})();
+</script>
+</body>
+</html>
